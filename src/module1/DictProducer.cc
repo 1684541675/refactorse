@@ -1,15 +1,32 @@
 #include "DictProducer.h"
 #include "SplitTool.h"
 #include "Configuration.h"
+
+#include <iostream>
+#include <fstream>
+#include <sstream>
 #include <dirent.h>
 
 
+namespace searchengine {
+
+using std::ifstream;
+using std::ofstream;
+using std::istringstream;
+using std::stringstream;
+using std::getline;
+using std::cout;
+using std::endl;
+
 DictProducer::DictProducer(const string &dir)
-:_endir(dir)
+: _endir(dir)
+, _splitTool(nullptr)
 {
-    string enDictPath = Configuration::getInstance()->getConfigMap()["enDict"];
-    string enDictIndex = Configuration::getInstance()->getConfigMap()["enDictIndex"];
-    string enStopDictPath = Configuration::getInstance()->getConfigMap()["enStop"];
+    auto &config = Configuration::getInstance().getConfigMap();
+
+    string enDictPath = config["enDict"];
+    string enDictIndex = config["enDictIndex"];
+    string enStopDictPath = config["enStop"];
 
     loadStopWord(enStopDictPath);
 
@@ -17,16 +34,20 @@ DictProducer::DictProducer(const string &dir)
     storeDict(enDictPath.c_str());
     buildIndex();
     storeIndex(enDictIndex.c_str());
-    cout << "Build En Dict and DictIndex OK" << endl;
-} //英文
 
+    cout << "Build En Dict and DictIndex OK" << endl;
+}
+
+// 中文
 DictProducer::DictProducer(const string &dir, SplitTool *splitTool)
-:_dir(dir)
-,_splitTool(splitTool)
+: _dir(dir)
+, _splitTool(splitTool)
 {
-    string dictPath = Configuration::getInstance()->getConfigMap()["dict"];
-    string dictIndex = Configuration::getInstance()->getConfigMap()["dictIndex"];
-    string cnStopDictPath = Configuration::getInstance()->getConfigMap()["cnStop"];
+    auto &config = Configuration::getInstance().getConfigMap();
+
+    string dictPath = config["dict"];
+    string dictIndex = config["dictIndex"];
+    string cnStopDictPath = config["cnStop"];
 
     loadStopWord(cnStopDictPath);
 
@@ -34,218 +55,211 @@ DictProducer::DictProducer(const string &dir, SplitTool *splitTool)
     storeDict(dictPath.c_str());
     buildIndex();
     storeIndex(dictIndex.c_str());
-    cout << "Build Cn Dict and DictIndex OK" << endl;
-} //中文
 
-void DictProducer::loadStopWord(string stopDictPath)
+    cout << "Build Cn Dict and DictIndex OK" << endl;
+}
+
+void DictProducer::loadStopWord(const string &stopDictPath)
 {
     _stopWord.clear();
+
     ifstream ifs(stopDictPath);
-    if (!ifs.good())
-    {
-        cout << "ifstream open error" << endl;
+    if(!ifs) {
+        cout << "stopword file open error" << endl;
         return;
     }
+
     string line, word;
-    while (getline(ifs, line))
-    {
-        istringstream iss(line); //处理每一行
-        while (iss >> word)
-        {
+
+    while(getline(ifs, line)) {
+        istringstream iss(line);
+        while(iss >> word) {
             _stopWord.insert(word);
         }
     }
-    ifs.close();
 }
 
 void DictProducer::buildEnDict()
 {
-    stringstream ss;
-    string line, word, in_word;
+    string line, word;
 
     _files.clear();
     getFiles(_endir);
 
-    for (auto &file : _files)
-    {
+    for(auto &file : _files) {
+
         ifstream ifs(file);
-        if (!ifs.good())
-        {
-            cout << "ifstream open error" << endl;
-            return;
+        if(!ifs) {
+            cout << "file open error" << endl;
+            continue;
         }
 
-        while (getline(ifs, line))
-        {
-            in_word.clear();
-            istringstream iss(line); //处理每一行
+        while(getline(ifs, line)) {
 
-            while (iss >> word)
-            {
-                // cout << word << endl;
-                in_word.clear();
-                for (char c : word)
-                {
-                    //去大写
-                    if (c >= 'A' && c <= 'Z')
-                    {
-                        c += 32;
-                    }
-                    //去符号
-                    if (isalpha(c))
-                    {
-                        in_word += c;
-                    }
-                    else
-                    {
-                        break;
-                    }
+            istringstream iss(line);
+
+            while(iss >> word) {
+
+                string cleanWord;
+
+                for(char c : word) {
+
+                    c = tolower(c);
+
+                    if(isalpha(c)){
+                        cleanWord += c;
+                    }  
+                    else{
+                         break;
+                    }      
                 }
 
-                if (in_word[in_word.size() - 1] == '-')
-                {
-                    in_word.resize(in_word.size() - 1);
-                }
-
-                if (in_word != " " && find(_stopWord.begin(), _stopWord.end(), in_word) == _stopWord.end())
-                {
-                    ++_dict[in_word];
-                }
-                else
-                {
+                if(cleanWord.empty()){
                     continue;
                 }
+                    
+                if(!_stopWord.count(cleanWord)){
+                    ++_dict[cleanWord];
+                }
+                    
             }
         }
-        ifs.close();
     }
 }
 
 void DictProducer::buildCnDict()
 {
     getFiles(_dir);
-    for (auto &file : _files)
-    {
-        ifstream ifs(file, std::ios::ate);
-        if (!ifs.good())
-        {
-            cout << "openArtDict file fail" << endl;
-            return;
+
+    for(auto &file : _files) {
+
+        ifstream ifs(file);
+        if(!ifs) {
+            cout << "file open error" << endl;
+            continue;
         }
 
-        size_t length = ifs.tellg(); //整片文章长度
-        ifs.seekg(std::ios_base::beg);
-        char *buff = new char[length + 1]; //一次性读入
-        ifs.read(buff, length + 1);
-        string txt(buff);
+        stringstream buffer;
+        buffer << ifs.rdbuf();
 
-        delete []buff;
+        string text = buffer.str();
 
-        vector<string> tmp = _splitTool->cut(txt);
+        auto words = _splitTool->cut(text);
 
-        for (auto &elem : tmp)
-        {
-            if (!_stopWord.count(elem) && getByteNum_UTF8(elem[0]) == 3)
-            {
-                ++_dict[elem];
+        for(auto &word : words) {
+
+            if(!word.empty() &&!_stopWord.count(word) && getByteNum_UTF8(word[0]) == 3){
+                ++_dict[word];
             }
+                
         }
-        ifs.close();
     }
 }
 
 void DictProducer::buildIndex()
 {
     int i = 0;
-    for (auto &elem : _dict)
-    {
-        string word = elem.first;
-        size_t charNums = word.size() / getByteNum_UTF8(word[0]); //获取字符长度
-        for (size_t idx = 0, n = 0; n != charNums; ++idx, ++n)
-        {
+
+    for(auto &elem : _dict) {
+
+        const string &word = elem.first;
+
+        size_t charNums = word.size() / getByteNum_UTF8(word[0]);
+
+        for(size_t idx = 0, n = 0; n != charNums; ++idx, ++n) {
+
             size_t charLen = getByteNum_UTF8(word[idx]);
+
             string subWord = word.substr(idx, charLen);
+
             _index[subWord].insert(i);
-            idx += (charLen - 1);
+
+            idx += charLen - 1;
         }
+
         ++i;
     }
 }
+
 void DictProducer::storeDict(const char *filepath)
 {
     ofstream ofs(filepath);
-    if (!ofs.good())
-    {
-        cout << "error in storeDict" << endl;
+
+    if(!ofs) {
+        cout << "storeDict open error" << endl;
         return;
     }
-    for (auto &it : _dict)
-    {
-        ofs << it.first << "  " << it.second << endl;
+
+    for(auto &it : _dict) {
+        ofs << it.first << " " << it.second << endl;
     }
-    ofs.close();
 }
 
 void DictProducer::storeIndex(const char *filepath)
 {
     ofstream ofs(filepath);
-    if (!ofs.good())
-    {
-        cout << "error in store index" << endl;
+
+    if(!ofs) {
+        cout << "storeIndex open error" << endl;
         return;
     }
-    for (auto &it : _index)
-    {
-        ofs << it.first << "  ";
-        for (auto &set_it : it.second)
-        {
-            ofs << set_it << " ";
+
+    for(auto &it : _index) {
+
+        ofs << it.first << " ";
+
+        for(auto &idx : it.second){
+            ofs << idx << " ";
         }
+
         ofs << endl;
     }
-    ofs.close();
 }
 
-void DictProducer::getFiles(string dir) //获取文件绝对路径
+void DictProducer::getFiles(const string &dir)
 {
-
     DIR *dirp = opendir(dir.c_str());
-    if(!dirp)
-    {
+
+    if(!dirp) {
         perror("opendir");
         return;
     }
 
     struct dirent *pdirent;
-    //遍历指定目录下的所有文件和子目录，并将它们的路径存储在一个容器中，同时跳过 . 和 .. 这两个特殊目录。
-    while ((pdirent = readdir(dirp)) != NULL)
-    {
-        if (strcmp(pdirent->d_name, ".") == 0 || strcmp(pdirent->d_name, "..") == 0)
+
+    while((pdirent = readdir(dirp)) != nullptr) {
+
+        string name = pdirent->d_name;
+
+        if(name == "." || name == "..")
         {
             continue;
         }
 
-        string filePath;
-        filePath = dir + "/" + pdirent->d_name;
+        string filePath = dir + "/" + name;
 
         _files.push_back(filePath);
     }
+
     closedir(dirp);
 }
 
-size_t DictProducer::getByteNum_UTF8(const char byte)
+size_t DictProducer::getByteNum_UTF8(char byte)
 {
     int byteNum = 0;
-    for (size_t i = 0; i < 6; ++i)
-    {
-        if (byte & (1 << (7 - i)))
-        {
+
+    for(size_t i = 0; i < 6; ++i) {
+
+        if(byte & (1 << (7-i))){
             ++byteNum;
-        }
-        else
-        {
-            break;
-        }
+        }       
+        else{
+             break;
+        }     
     }
+
     return byteNum == 0 ? 1 : byteNum;
 }
+
+}
+

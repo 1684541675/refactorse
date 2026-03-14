@@ -2,14 +2,22 @@
 #include "DictProducer.h"
 #include "SplitTool.h"
 
+#include <string>
+
+using namespace searchengine;
+using std::string;
+
 int main()
 {
-    string cnYuliaoPath = Configuration::getInstance()->getConfigMap()["cnDir"];
-    string enYuliaoPath = Configuration::getInstance()->getConfigMap()["enDir"];
-    
+    auto &config = Configuration::getInstance().getConfigMap();
+
+    string cnYuliaoPath = config["cnDir"];
+    string enYuliaoPath = config["enDir"];
+
     SplitTool tool;
-    DictProducer cndict(cnYuliaoPath,&tool);
-    DictProducer endict(enYuliaoPath);
+
+    DictProducer cnDict(cnYuliaoPath, &tool);
+    DictProducer enDict(enYuliaoPath);
+
     return 0;
 }
-
