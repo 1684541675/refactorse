@@ -1,0 +1,26 @@
+2025-05-15 20:32:47,301 SearchEngine [ERROR] test.cc: main: 8: This is a message, number = 100, pstr = hello,world
+
+2025-06-06 18:04:02,249 SearchEngine [INFO] [EchoServer.cc:onConnection.45]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:41290 connected
+2025-06-06 18:04:18,694 SearchEngine [INFO] [MyTask.cc:process.38]
+	redis miss: 教育
+2025-06-06 18:05:21,681 SearchEngine [INFO] [MyTask.cc:process.38]
+	redis miss: 网页
+2025-06-06 18:06:23,633 SearchEngine [INFO] [EchoServer.cc:onConnection.45]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:39626 connected
+2025-06-06 18:06:31,076 SearchEngine [INFO] [EchoServer.cc:onConnection.45]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:49720 connected
+2025-06-06 18:06:38,006 SearchEngine [INFO] [MyTask.cc:process.38]
+	redis miss: ji
+2025-06-06 18:06:38,006 SearchEngine [INFO] [KeyRecommender.cc:doQuery.35]
+	keyRecommender miss: ji
+2025-06-06 18:06:53,817 SearchEngine [INFO] [MyTask.cc:process.38]
+	redis miss: 教育
+2025-06-06 18:07:25,909 SearchEngine [INFO] [MyTask.cc:process.54]
+	LRU miss: 教育
+2025-06-06 18:08:13,474 SearchEngine [INFO] [EchoServer.cc:onClose.61]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:41290 disconnected
+2025-06-06 18:08:26,016 SearchEngine [INFO] [EchoServer.cc:onClose.61]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:49720 disconnected
+2025-06-06 18:08:32,568 SearchEngine [INFO] [EchoServer.cc:onClose.61]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:39626 disconnected
