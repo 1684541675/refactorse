@@ -1,15 +1,26 @@
 #include "OffsetProcesser.h"
 #include "WebPage.h"
 
-OffsetProcesser::OffsetProcesser(vector<WebPage> &pagelist, vector<pair<size_t, size_t>> &offsetlib)
-:_pagelist(pagelist)
-,_offsetlib(offsetlib)
+#include <vector>
+#include <utility>
+#include <cstddef>  // size_t
+
+namespace searchengine
 {
 
+using std::vector;
+using std::pair;
+
+OffsetProcesser::OffsetProcesser(vector<WebPage> &pagelist,
+                                 vector<pair<size_t, size_t>> &offsetlib)
+: _pagelist(pagelist)
+, _offsetlib(offsetlib)
+{
+    
 }
 
 /**
- *  生成偏移库 _offsetlib
+ * 生成偏移库 _offsetlib
  */
 void OffsetProcesser::process()
 {
@@ -21,3 +32,5 @@ void OffsetProcesser::process()
         offset += textlength;
     }
 }
+
+} // namespace searchengine

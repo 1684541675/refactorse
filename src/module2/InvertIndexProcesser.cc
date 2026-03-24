@@ -1,20 +1,35 @@
 #include "InvertIndexProcesser.h"
 #include "WebPage.h"
 
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <iostream>
 
-InvertIndexProcesser::InvertIndexProcesser(vector<WebPage> &pageList,unordered_map<string, unordered_map<PageID, double>> &invertIndexTable)
-:_pageList(pageList)
-,_invertIndexTable(invertIndexTable)
+namespace searchengine
 {
 
+using std::string;
+using std::vector;
+using std::unordered_map;
+using std::cout;
+using std::endl;
+
+InvertIndexProcesser::InvertIndexProcesser(vector<WebPage> &pageList,
+                                           unordered_map<string, unordered_map<PageID, double>> &invertIndexTable)
+: _pageList(pageList)
+, _invertIndexTable(invertIndexTable)
+{
 }
 
 /**
- *  生成倒排索引
+ * 生成倒排索引
  */
 void InvertIndexProcesser::process()
 {
-
     _sumOfWeightsPerPage.resize(_pageList.size(), 0.0); // 为 _sumOfWeightsPerPage 申请内存并初始化
 
     for (auto &page : _pageList) // WebPage page
@@ -24,7 +39,7 @@ void InvertIndexProcesser::process()
         {
             string word = wordPair.first;
 
-            int wordNumInPage = wordsMap.size(); // page 网页中的单词总数
+            int wordNumInPage = page.getTotalwords(); // page 网页中有效的单词总数
             if (wordNumInPage < 1)
             {
                 perror("this page contains no word\n");
@@ -73,6 +88,6 @@ void InvertIndexProcesser::process()
             pageIdPair.second /= sqrt(sumWeight); // value = w'
         }
     }
-
 }
 
+} // namespace searchengine

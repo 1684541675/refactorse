@@ -1,5 +1,22 @@
 #include "CompareSimhash.h"
 #include "WebPage.h"
+#include "Configuration.h"
+
+namespace searchengine
+{
+
+using namespace simhash; // 只在 .cc 使用
+
+CompareSimhash::CompareSimhash()
+: _simhasher(
+    Configuration::getInstance().getConfigMap()["jieba_dict"],
+    Configuration::getInstance().getConfigMap()["jieba_hmm"],
+    Configuration::getInstance().getConfigMap()["jieba_idf"],
+    Configuration::getInstance().getConfigMap()["stopwords"]
+)
+{
+
+}
 
 /**
  *	若剔除网页 page 则返回 true，否则返回 false
@@ -11,64 +28,70 @@
 bool CompareSimhash::cut(const WebPage &page)
 {
     uint64_t i = 0;
-    _simhasher.make(page.getContent(), topN, i); // 求 page 的 64 位 hash 值
+    _simhasher.make(page.getContent(), topN, i);
 
     uint64_t a = 0xff000000;
     uint64_t b = 0x00ff0000;
     uint64_t c = 0x0000ff00;
     uint64_t d = 0x000000ff;
 
-    for (auto &list : keylist) // 依次遍历所有 list
+    uint64_t keyA = i & a;
+    uint64_t keyB = i & b;
+    uint64_t keyC = i & c;
+    uint64_t keyD = i & d;
+
+    // ===== 查找阶段 =====
+    if (_bucketA.count(keyA))
     {
-        if ((i & a) == list.key_A) // 命中 key_A
+        for (auto &hash : _bucketA[keyA])
         {
-            for (auto &hash : list.A) // 在 list.A 中查找
+            if (Simhasher::isEqual(i, hash))
             {
-                if (Simhasher::isEqual(i, hash))
-                {
-                    return true;
-                }
-            }
-            list.A.push_back(i); // 当 i 未在 list.A 中命中，要将 i 加入 list.A
-        }
-        if ((i & b) == list.key_B) // 命中 key_B
-        {
-            for (auto &hash : list.B) // 在 list.B 中查找
-            {
-                if (Simhasher::isEqual(i, hash))
-                {
-                    return true;
-                }
-            }
-            list.B.push_back(i); // 当 i 未在 list.B 中命中，要将 i 加入 list.B
-        }
-        if ((i & c) == list.key_C) // 命中 key_C
-        {
-            for (auto &hash : list.C) // 在 list.C 中查找
-            {
-                if (Simhasher::isEqual(i, hash))
-                {
-                    return true;
-                }
-            }
-            list.C.push_back(i); // 当 i 未在 list.C 中命中，要将 i 加入 list.C
-        }
-        if ((i & d) == list.key_D) // 命中 key_D
-        {
-            for (auto &hash : list.D) // 在 list.D 中查找
-            {
-                if (Simhasher::isEqual(i, hash))
-                {
-                    return true;
-                }
-            }
-            list.D.push_back(i); // 当 i 未在 list.D 中命中，要将 i 加入 list.d
+                return true;
+            }  
         }
     }
 
-    // 所有 list 的 Key 都未命中，将该 hash 值添加进 keylist 中作为新的 list
-    hashkey h(i);
-    keylist.push_back(h);
+    if (_bucketB.count(keyB))
+    {
+        for (auto &hash : _bucketB[keyB])
+        {
+            if (Simhasher::isEqual(i, hash))
+            {
+                return true;
+            }
+        }
+    }
+
+    if (_bucketC.count(keyC))
+    {
+        for (auto &hash : _bucketC[keyC])
+        {
+            if (Simhasher::isEqual(i, hash))
+            {
+                return true;
+            }
+        }
+    }
+
+    if (_bucketD.count(keyD))
+    {
+        for (auto &hash : _bucketD[keyD])
+        {
+            if (Simhasher::isEqual(i, hash))
+            {
+                return true;
+            }
+        }
+    }
+
+    // ===== 插入阶段 =====
+    _bucketA[keyA].push_back(i);
+    _bucketB[keyB].push_back(i);
+    _bucketC[keyC].push_back(i);
+    _bucketD[keyD].push_back(i);
+
     return false;
 }
 
+} // namespace searchengine

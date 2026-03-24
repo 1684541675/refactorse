@@ -1,14 +1,28 @@
 #include "DirScanner.h"
+
 #include <dirent.h>
+#include <string>
+#include <vector>
+#include <iostream>
+#include <cstdio>
+
+namespace searchengine
+{
+
+using std::string;
+using std::vector;
+using std::cout;
+using std::endl;
 
 DirScanner::DirScanner(const string &dirPath)
-:_dirPath(dirPath)
+: _dirPath(dirPath)
 {
-    cout << "DirScanner()\n";
+    cout << "DirScanner()" << endl;
     traverse();
+
     for (auto &item : _filePathList)
     {
-        cout << item << "\n";
+        cout << item << endl;
     }
 }
 
@@ -23,28 +37,29 @@ void DirScanner::traverse()
 void DirScanner::traverse(const string &dirName)
 {
     DIR *fDir = opendir(dirName.c_str());
-    if(!fDir)
+    if (!fDir)
     {
         perror("opendir");
-        return ;
+        return;
     }
 
     struct dirent *pDirent;
-    while (NULL != (pDirent = readdir(fDir)))
+    while ((pDirent = readdir(fDir)) != nullptr)
     {
-        if (strcmp(pDirent->d_name, ".") == 0 || strcmp(pDirent->d_name, "..") == 0)
+        string name = pDirent->d_name;
+
+        if (name == "." || name == "..")
         {
             continue;
         }
-        else if (pDirent->d_type == 8)//8=DT_REG 表示普通文档
+        else if (pDirent->d_type == DT_REG) // 8=DT_REG 普通文件
         {
-            string filePath;
-            filePath = dirName + "/" + pDirent->d_name;
+            string filePath = dirName + "/" + name;
             _filePathList.push_back(filePath);
         }
-        else if (pDirent->d_type == 4)//4=DR_DIR 表示目录
+        else if (pDirent->d_type == DT_DIR) // 4=DT_DIR 目录
         {
-            string strNextdir = dirName + "/" + pDirent->d_name;
+            string strNextdir = dirName + "/" + name;
             traverse(strNextdir);
         }
     }
@@ -57,3 +72,4 @@ vector<string> &DirScanner::getFilePathList()
     return _filePathList;
 }
 
+} // namespace searchengine

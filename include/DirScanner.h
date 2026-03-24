@@ -1,8 +1,17 @@
 #pragma once
 
+#include <string>
+#include <vector>
 #include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+
+namespace searchengine
+{
+
+using std::string;
+using std::vector;
+using std::cout;
+using std::endl;
+
 /*************************************************************
  *
  *  目录扫描类
@@ -12,12 +21,14 @@ class DirScanner
 {
 public:
     explicit DirScanner(const string &);
+
     ~DirScanner()
     {
         cout << "~DirScanner()" << endl;
     }
 
     void traverse();
+
     vector<string> &getFilePathList();
 
 private:
@@ -28,3 +39,4 @@ private:
     string _dirPath;
 };
 
+} // namespace searchengine

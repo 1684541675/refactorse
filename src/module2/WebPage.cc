@@ -2,6 +2,21 @@
 #include "RssParser.h"
 #include "SplitTool.h"
 
+#include <string>
+#include <sstream>
+#include <vector>
+#include <unordered_map>
+#include <algorithm>
+
+namespace searchengine
+{
+
+using std::istringstream;
+using std::string;
+using std::vector;
+using std::find;
+using std::to_string;
+
 /**
  *  根据 Item 对象构建网页
  *
@@ -9,7 +24,8 @@
  */
 
 WebPage::WebPage(const RssItem &item)
-:_docID(0) 
+:_totalWords(0)
+,_docID(0) 
 ,_docTitle(item.title)
 ,_docURL(item.link)
 ,_docContent(item.description)
@@ -81,6 +97,11 @@ string WebPage::getSummary() const
     return _docSummary;
 }
 
+int WebPage::getTotalwords() const
+{
+    return _totalWords;
+}
+
 unordered_map<string, int> &WebPage::getWordsMap()
 {
     return _wordsMap;
@@ -110,15 +131,17 @@ void WebPage::setPageSummary(const string &summary)
 }
 
 // 对 _docTitle 和 _docContent 分词并统计词频
-void WebPage::splitWord(SplitTool &tool, const vector<string> &stopWords)
+void WebPage::splitWord(SplitTool &tool, const unordered_set<string> &stopWords)
 {
     auto words = tool.cut(_docTitle + _docContent); // 分词
     for (auto &word : words)                        // 去重并统计词频
     {
-        if (word != " " && find(stopWords.begin(), stopWords.end(), word) == stopWords.end()) // 若不是停用词就加入 _wordsMap
+        if (word != " " && stopWords.count(word) == 0) // 若不是停用词就加入 _wordsMap
         {
             ++_wordsMap[word];
+            ++_totalWords;
         }
     }
+}
 
 }

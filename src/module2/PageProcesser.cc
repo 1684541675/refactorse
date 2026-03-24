@@ -3,7 +3,24 @@
 #include "RssParser.h"
 #include "Configuration.h"
 
-#include <sys/time.h>
+#include <chrono>
+
+#include <fstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <utility>
+#include <cstddef>
+
+namespace searchengine
+{
+
+using std::ifstream;
+using std::string;
+using std::vector;
+using std::move;
+using std::cout;
+
 
 PageProcesser::PageProcesser(vector<string> &filePathList, vector<WebPage> &pageList)
 :_filePathList(filePathList)
@@ -14,7 +31,7 @@ PageProcesser::PageProcesser(vector<string> &filePathList, vector<WebPage> &page
 
 void PageProcesser::loadStopWords()
 {
-    ifstream ifs(Configuration::getInstance()->getConfigMap()["stopwords"]);
+    ifstream ifs(Configuration::getInstance().getConfigMap()["stopwords"]);
     if (!ifs)
     {
         perror("can not open stop_words.utf8");
@@ -22,14 +39,13 @@ void PageProcesser::loadStopWords()
     string word;
     while (ifs >> word)
     {
-        _stopWords.push_back(word);
+        _stopWords.insert(word);
     }
-    ifs.close();
 }
 /**
  *  获取网页库
  *
- *  1. 将网页文件交给 RssPraser 解析，生成未去重的 _pageList 对象
+ *  1. 将网页文件交给 RssParser 解析，生成未去重的 _pageList 对象
  *  2. 使用 simhash 进行网页去重，得到去重后的 _nonRepetivepageList 对象
  *  3. 对 _nonRepetivepageList 对象中每篇文章进行词频统计
  */
@@ -37,21 +53,27 @@ void PageProcesser::loadStopWords()
 void PageProcesser::process()
 {
     {
-        struct timeval begTime, endTime;
-        gettimeofday(&begTime, NULL);
+        auto beg = std::chrono::high_resolution_clock::now();
+        
         loadPageFromXML(); // 加载网页
-        gettimeofday(&endTime, NULL);
-        printf("loadPageFromXML take total %lf seconds\n",
-               (endTime.tv_sec - begTime.tv_sec)+ (endTime.tv_usec - begTime.tv_usec)*1.0/1e6);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> diff = end - beg;
+
+        cout << "loadPageFromXML take total "
+                << diff.count() << " seconds\n";
+       
     }
 
     {
-        struct timeval begTime, endTime;
-        gettimeofday(&begTime, NULL);
+        auto beg = std::chrono::high_resolution_clock::now();
         cutRedundantPage(); // 网页去重
-        gettimeofday(&endTime, NULL);
-        printf("cutRedundantPage take total %lf seconds\n",
-               (endTime.tv_sec - begTime.tv_sec)+ (endTime.tv_usec - begTime.tv_usec)*1.0/1e6);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> diff = end - beg;
+
+        cout << "cutRedundantPage take total "
+                << diff.count() << " seconds\n";
+        
 
         // 去重结束，可以确定每篇文章的 _docID 与 _doc
         for (size_t idx = 0; idx < _nonRepetivepageList.size(); ++idx)
@@ -62,12 +84,13 @@ void PageProcesser::process()
     }
 
     {
-        struct timeval begTime, endTime;
-        gettimeofday(&begTime, NULL);
+        auto beg = std::chrono::high_resolution_clock::now();
         countFrequence(); // 统计词频
-        gettimeofday(&endTime, NULL);
-        printf("countFrequence take total %lf seconds\n",
-               (endTime.tv_sec - begTime.tv_sec)+ (endTime.tv_usec - begTime.tv_usec)*1.0/1e6);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> diff = end - beg;
+        cout << "countFrequence take total "
+                << diff.count() << " seconds\n";
+       
     }
 }
 
@@ -76,8 +99,8 @@ void PageProcesser::loadPageFromXML()
     PageID ID = 0;
     for (auto &filePath : _filePathList)
     {
-        RssPraser rssPraser(filePath.c_str());
-        for (auto &item : rssPraser.getRssItems())
+        RssParser rssParser(filePath);
+        for (auto &item : rssParser.getRssItems())
         {
             WebPage page(item);
             page.setPageID(ID++); // 更新 ID 便于去重时排序
@@ -121,4 +144,6 @@ void PageProcesser::countFrequence()
     {
         page.splitWord(_splitTool, _stopWords);
     }
+}
+
 }

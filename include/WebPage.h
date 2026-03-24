@@ -1,12 +1,21 @@
 #pragma once
 
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
-using PageID = long; 
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>
 
+namespace searchengine
+{
+
+using PageID = long;
+using std::string;
+using std::vector;
+using std::unordered_map;
+using std::unordered_set;
 class RssItem;
 class SplitTool;
+
 /*************************************************************
  *
  *  网页类
@@ -29,6 +38,7 @@ public:
     string getUrl() const;
     string getContent() const;
     string getSummary() const;
+    int getTotalwords() const;
     unordered_map<string, int> &getWordsMap();
 
     void setPageID(PageID);
@@ -36,10 +46,11 @@ public:
     void setPageContent(const string &);
     void setPageSummary(const string &);
 
-    void splitWord(SplitTool &, const vector<string> &);
+    void splitWord(SplitTool &, const unordered_set<string> &);
 
 
 private:
+    int _totalWords;
     string _doc; // <doc>...</doc>
     PageID _docID;
     string _docTitle;
@@ -48,4 +59,6 @@ private:
     string _docSummary;                   // 摘要
     unordered_map<string, int> _wordsMap; // 词频集合 <word, freq>
 };
+
+}
 

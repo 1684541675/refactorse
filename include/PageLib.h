@@ -1,9 +1,27 @@
 #pragma once
+
 #include "DirScanner.h"
 #include "PageProcesser.h"
 #include "InvertIndexProcesser.h"
 #include "OffsetProcesser.h"
 #include "WebPage.h"
+
+#include <vector>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <iostream>
+
+namespace searchengine
+{
+
+using std::vector;
+using std::string;
+using std::pair;
+using std::unordered_map;
+using std::cout;
+using std::endl;
+
 /*************************************************************
  *
  *  网页库类
@@ -16,6 +34,7 @@ class PageLib
 {
 public:
     explicit PageLib(const string &);
+
     ~PageLib()
     {
         cout << "~PageLib()" << endl;
@@ -25,13 +44,16 @@ public:
     void store();
 
 private:
-
     DirScanner _dirScanner;
     PageProcesser _pageProcesser;
     InvertIndexProcesser _invertIndexProcesser;
     OffsetProcesser _offsetProcesser;
-    vector<WebPage> _pageList;                                              // 网页库
-    vector<pair<size_t, size_t>> _offsetTable;                              // 网页偏移库
+
+    vector<WebPage> _pageList; // 网页库
+
+    vector<pair<size_t, size_t>> _offsetTable; // 网页偏移库
+
     unordered_map<string, unordered_map<PageID, double>> _invertIndexTable; // 倒排索引库
 };
 
+} // namespace searchengine
