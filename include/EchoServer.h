@@ -7,10 +7,13 @@
 
 #include <sw/redis++/redis++.h>
 
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
-using namespace sw::redis;
+#include <string>
+using std::string;
+
+namespace searchengine
+{
+    
+
 class EchoServer
 {
 public:
@@ -29,8 +32,9 @@ private:
     ThreadPool _pool;
     TcpServer _server;
     WebPageSearcher _webPageSearcher;
-    KeyRecommender _recommender; // v1
+    KeyRecommender _recommender; 
     sw::redis::Redis _redis;
     TimerThread _timerThread;
 };
 
+}

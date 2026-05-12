@@ -10,8 +10,12 @@
  *  3. 提供更改套接字模式/选项的方法
  *
  *************************************************************/
+
+namespace searchengine
+{
+ 
 class Socket
-: NonCopyable
+:private NonCopyable
 {
 public:
     Socket();
@@ -25,3 +29,5 @@ public:
 private:
     int _fd;
 };
+
+}

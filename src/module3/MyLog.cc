@@ -1,6 +1,7 @@
 #include "MyLog.h"
 
-MyLog *MyLog::_pInstance = MyLog::getInstance();
+namespace searchengine
+{
 
 MyLog::MyLog()
 :_root(Category::getRoot().getInstance("SearchEngine"))
@@ -15,27 +16,16 @@ MyLog::MyLog()
     _root.addAppender(pFileapp);
 }
 
-MyLog *MyLog::getInstance()
+MyLog &MyLog::getInstance()
 {
-    if (nullptr == _pInstance)
-    {
-        _pInstance = new MyLog();
-        atexit(destroy);
-    }
-    return _pInstance;
+    static MyLog instance;
+    return instance;
 }
 
-void MyLog::destroy()
-{
-    if (_pInstance)
-    {
-        delete _pInstance;
-        _pInstance = nullptr;
-    }
-}
 
 MyLog::~MyLog()
 {
     Category::shutdown();
 }
 
+}

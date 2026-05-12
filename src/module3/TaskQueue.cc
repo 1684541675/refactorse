@@ -1,5 +1,10 @@
 #include "TaskQueue.h"
 #include "MutexLockGuard.h"
+#include <utility>
+using std::move;
+
+namespace searchengine
+{
 
 TaskQueue::TaskQueue(size_t capacity)
 :_capacity(capacity)
@@ -31,10 +36,8 @@ void TaskQueue::push(Task &&task)
 
     _queue.push(move(task)); // 任务入队
 
-    if (!empty()) // 仓库非空，唤醒消费者
-    {
-        _empty.notifyAll();
-    }
+    _empty.notifyAll();
+    
 }
 
 TaskQueue::Task TaskQueue::pop()
@@ -50,14 +53,11 @@ TaskQueue::Task TaskQueue::pop()
         return nullptr;
     }
 
-    Task tmp = _queue.front();
+    Task tmp = move(_queue.front());
     _queue.pop(); // 任务出队
 
-    if (!full()) // 仓库非满，唤醒生产者
-    {
-        _full.notifyAll();
-    }
-
+   _full.notifyAll();
+    
     return tmp;
 }
 
@@ -67,3 +67,4 @@ void TaskQueue::wakeupEmpty()
     _empty.notifyAll();
 }
 
+}

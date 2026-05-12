@@ -1,13 +1,21 @@
 #pragma once
-#include "Acceptor.h"
 #include "TcpConnection.h"
-#include "MutexLockGuard.h"
+#include "MutexLock.h"
 
 #include <sys/epoll.h>
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
-#define ERROR_CHECK(ret,num,msg) {if(ret == num){perror(msg);return ;}}
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <functional>
+#include <cstddef>
+
+using std::string;
+using std::vector;
+using std::unordered_map;
+using std::function;
+
+namespace searchengine
+{
 /*************************************************************
  *
  *  epoll 事件循环类
@@ -16,7 +24,9 @@ using namespace std;
  *     让 TcpConnection 注册的
  *
  *************************************************************/
-class EventLoop
+class Acceptor;
+
+ class EventLoop
 {
     friend void TcpConnection::notifyLoop(const string &);
 
@@ -25,7 +35,7 @@ public:
 
 private:
     using EventList = vector<struct epoll_event>;
-    using ConnectionMap = map<int, TcpConnectionPtr>;
+    using ConnectionMap = unordered_map<int, TcpConnectionPtr>;
     using PendingCallBack = function<void()>;
 
 public:
@@ -71,3 +81,4 @@ private:
     vector<PendingCallBack> _pendingCbs; // 延迟事件处理器集合（即多个 send 操作）
 };
 
+} // namespace searchengine

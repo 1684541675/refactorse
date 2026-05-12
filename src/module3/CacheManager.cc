@@ -1,17 +1,16 @@
 #include "CacheManager.h"
 #include "Configuration.h"
+#include <iostream>
+using std::cout;    
+using std::endl;
 
-
-CacheManager *CacheManager::_pInstance = CacheManager::getInstance(); // 饿汉
-
-CacheManager *CacheManager::getInstance()
+namespace searchengine
 {
-    if (_pInstance == nullptr)
-    {
-        _pInstance = new CacheManager();
-        atexit(destroy);
-    }
-    return _pInstance;
+
+CacheManager &CacheManager::getInstance()
+{
+    static CacheManager instance;
+    return instance;
 }
 
 CacheGroup &CacheManager::getCacheGroup(size_t idx)
@@ -20,22 +19,13 @@ CacheGroup &CacheManager::getCacheGroup(size_t idx)
 }
 
 CacheManager::CacheManager()
-:_cacheNums(stoul(Configuration::getInstance()->getConfigMap()["workernum"]))
-,_maxRecord(stoul(Configuration::getInstance()->getConfigMap()["recordnum"]))
+:_cacheNums(stoul(Configuration::getInstance().getConfigMap()["workernum"]))
+,_maxRecord(stoul(Configuration::getInstance().getConfigMap()["recordnum"]))
 ,_caches(_cacheNums, _maxRecord) // 创建 _cacheNums 个 cache group 对象（这里在构造对象时还要传入 _maxRecord）
 {
 
 }
 
-void CacheManager::destroy()
-{
-    cout << "void CacheManager::destroy()" << endl;
-    if (_pInstance)
-    {
-        delete _pInstance;
-        _pInstance = nullptr;
-    }
-}
 
 void CacheManager::sync()
 {
@@ -74,3 +64,4 @@ void CacheManager::sync()
 #endif
 }
 
+}

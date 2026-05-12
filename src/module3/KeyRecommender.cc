@@ -1,8 +1,19 @@
 #include "KeyRecommender.h"
 #include "Configuration.h"
+#include "Dictionary.h"
 #include "MyLog.h"
 #include "../../3rdparty/json-develop/include/nlohmann/json.hpp"
 #include "fifo_map.hpp"
+#include <cctype>
+#include <unordered_map>
+#include <algorithm>
+#include <utility>
+#include <iostream>
+using std::min;
+using std::cout;
+using std::endl;
+using std::unordered_map;
+using std::pair;
 using namespace nlohmann;
 /* 以下为 nlohmann/json 库使用，保证插入顺序不变 */
 template <class K, class V, class dummy_compare, class A>
@@ -10,18 +21,38 @@ using my_workaround_fifo_map = fifo_map<K, V, fifo_map_compare<K>, A>;
 using my_json = basic_json<my_workaround_fifo_map>;
 using Json = my_json;
 
+namespace searchengine
+{
 
 string KeyRecommender::doQuery(const string &queWord)
 {
-    Dictionary *pdict = Dictionary::getInstance();
-    const map<string, set<int>> &indexTable = pdict->getIndexTable(); // 词典索引
-
-    set<int> indexId; //获得的索引ID
-    string index;
-    for (size_t idx = 0; idx < queWord.length(); ++idx)
+    // 先判断输入类型
+    DictType type; // 枚举类型，用于选择词典
+    string queryWord = queWord;
+    if (isChineseQuery(queryWord))
     {
-        size_t nBytes = nBytesCode(queWord[idx]);
-        index = queWord.substr(idx, nBytes);
+        type = DictType::CN;
+    }
+    else if (isEnglishQuery(queryWord))
+    {
+        type = DictType::EN;
+        queryWord = toLower(queryWord);   // 这里统一转小写
+    }
+    else
+    {
+        // 混合输入或非法字符，暂不处理
+        LogInfo("\n\tkeyRecommender unsupported query: %s", queryWord.c_str());
+        return serializeForNothing();
+    }
+    Dictionary &pdict = Dictionary::getInstance();
+    const unordered_map<string, unordered_set<int>> &indexTable = pdict.getIndexTable(type); // 词典索引
+
+    unordered_set<int> indexId; //获得的索引ID
+    string index;
+    for (size_t idx = 0; idx < queryWord.length(); ++idx)
+    {
+        size_t nBytes = nBytesCode(queryWord[idx]);
+        index = queryWord.substr(idx, nBytes);
         idx += (nBytes - 1);
         auto it = indexTable.find(index);
         if (it != indexTable.end())
@@ -32,16 +63,16 @@ string KeyRecommender::doQuery(const string &queWord)
 
     if (indexId.size() == 0)
     {
-        LogInfo("\n\tkeyRecommender miss: %s", queWord.c_str());
+        LogInfo("\n\tkeyRecommender miss: %s", queryWord.c_str());
         return serializeForNothing();
     }
 
     priority_queue<MyResult, vector<MyResult>, MyCompare> resultQue;
-    statistic(queWord, indexId, resultQue);
+    statistic(queryWord, type, indexId, resultQue);
 
     vector<string> result;
-    const int candicateCount = stoi(Configuration::getInstance()->getConfigMap()["maxkeynum"]);
-    for (int i = 0; i < candicateCount; ++i)
+    const int candidateCount = stoi(Configuration::getInstance().getConfigMap()["maxkeynum"]);
+    for (int i = 0; i < candidateCount; ++i)
     {
         if (!resultQue.empty())
         {
@@ -56,43 +87,97 @@ string KeyRecommender::doQuery(const string &queWord)
     return serialize(result);
 }
 
-void KeyRecommender::statistic(const string &queWord,set<int> &indexId,
+void KeyRecommender::statistic(const string &queWord,
+                               DictType type,
+                               const unordered_set<int> &indexId,
                                priority_queue<MyResult, vector<MyResult>, MyCompare> &resultQue)
 {
-    Dictionary *pdict = Dictionary::getInstance();
-    const vector<pair<string, int>> &dict = pdict->getDict(); // 词典
+    Dictionary &dictionary = Dictionary::getInstance();
+    const vector<pair<string,int>> &dict = dictionary.getDict(type); // vector 类型
 
-    for (auto it = indexId.begin(); it != indexId.end(); ++it)
+    for (auto idx : indexId)
     {
-        MyResult result(dict[*it].first, dict[*it].second);
-        int dist = distance(dict[*it].first,queWord);
+        const string &word = dict[idx].first;
+        int freq = dict[idx].second;
+
+        MyResult result(word, freq);
+        int dist = distance(word, queWord);
         result.setDist(dist);
         resultQue.push(result);
     }
 }
 
-size_t KeyRecommender::nBytesCode(const char ch)
+bool KeyRecommender::isEnglishQuery(const string &queryWord)
 {
-    if (ch & (1 << 7))
+    if (queryWord.empty())
     {
-        int nBytes = 1;
-        for (int idx = 0; idx != 6; ++idx)
-        {
-            if (ch & (1 << (6 - idx)))
-            {
-                ++nBytes;
-            }
-            else
-            {
-                break;
-            }
-        }
-        return nBytes;
+        return false;
     }
-    return 1;
+
+    for (unsigned char ch : queryWord)
+    {
+        if (!isalpha(ch))
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
-size_t KeyRecommender::length(const std::string &str)
+bool KeyRecommender::isChineseQuery(const string &queryWord)
+{
+    if (queryWord.empty())
+    {
+        return false;
+    }
+
+    for (size_t idx = 0; idx < queryWord.size(); ++idx)
+    {
+        size_t nBytes = nBytesCode(queryWord[idx]);
+
+        if (nBytes != 3)
+        {
+            return false;
+        }
+
+        idx += (nBytes - 1);
+    }
+
+    return true;
+}
+
+string KeyRecommender::toLower(const string &word)
+{
+    string res = word;
+    for (auto &ch : res)
+    {
+        ch = tolower(ch);
+    }
+    return res;
+}
+
+size_t KeyRecommender::nBytesCode(const char byte)
+{
+    int byteNum = 0;
+
+    for(size_t i = 0; i < 6; ++i) 
+    {
+
+        if(byte & (1 << (7-i)))
+        {
+            ++byteNum;
+        }       
+        else
+        {
+             break;
+        }     
+    }
+
+    return byteNum == 0 ? 1 : byteNum;
+}
+
+size_t KeyRecommender::length(const string &str)
 {
     size_t ilen = 0;
     for (size_t idx = 0; idx != str.size(); ++idx)
@@ -141,7 +226,7 @@ int KeyRecommender::distance(const string &lhs, const string &rhs)
             }
             else
             {
-                dp[dist_j]=min(min(dp[dist_j-1],dp[dist_j]),leftup)+1;
+                dp[dist_j]=min({dp[dist_j-1], dp[dist_j], leftup}) + 1;
             }
             leftup=temp;
         }
@@ -178,4 +263,7 @@ string KeyRecommender::serialize(const vector<string> &result)
 #endif
 
     return root.dump(4);
+}
+
+
 }

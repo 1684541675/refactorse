@@ -4,6 +4,16 @@
 #include "TimerTask.h"
 #include "Configuration.h"
 
+#include <iostream>
+#include <functional>
+
+using std::bind;
+using std::cout;
+using std::endl;
+
+namespace searchengine
+{
+
 EchoServer::EchoServer(const string &ip, unsigned short port)
 :_pool(INIT_WORKER_NUM, INIT_TASKQUEUE_CAPACITY)
 ,_server(ip, port)
@@ -11,8 +21,8 @@ EchoServer::EchoServer(const string &ip, unsigned short port)
 ,_recommender()
 ,_redis("tcp://127.0.0.1:6379")
 ,_timerThread(bind(&TimerTask::process, TimerTask()),
-                   stoi(Configuration::getInstance()->getConfigMap()["initTime"]),
-                   stoi(Configuration::getInstance()->getConfigMap()["periodicTime"]))
+                   stoi(Configuration::getInstance().getConfigMap()["initTime"]),
+                   stoi(Configuration::getInstance().getConfigMap()["periodicTime"]))
 {
 
 }
@@ -23,11 +33,18 @@ void EchoServer::start()
 
     _timerThread.start();
 
-    using namespace std::placeholders;
-    _server.setConnectionCallBack(bind(&EchoServer::onConnection, this, _1));
-    _server.setMessageCallBack(bind(&EchoServer::onMessage, this, _1));
-    _server.setCloseCallBack(bind(&EchoServer::onClose, this, _1));
 
+    _server.setConnectionCallBack([this](const TcpConnectionPtr &connPtr) {
+        onConnection(connPtr);
+    });
+
+    _server.setMessageCallBack([this](const TcpConnectionPtr &connPtr) {
+        onMessage(connPtr);
+    });
+
+    _server.setCloseCallBack([this](const TcpConnectionPtr &connPtr) {
+        onClose(connPtr);
+    });
     _server.start();
 }
 
@@ -53,7 +70,7 @@ void EchoServer::onMessage(const TcpConnectionPtr &connPtr)
 
     // decode -> compute -> encode -> send
     MyTask task(msg, connPtr, _webPageSearcher, _recommender, _redis);
-    _pool.addTask(bind(&MyTask::process, task)); // 因此 ThreadPool ..> MyTask
+    _pool.addTask([task]() mutable { task.process(); }); // 也可以 lambda 表达式
 }
 
 void EchoServer::onClose(const TcpConnectionPtr &connPtr)
@@ -62,3 +79,4 @@ void EchoServer::onClose(const TcpConnectionPtr &connPtr)
     cout << connPtr->show() << " disconnected!" << endl;
 }
 
+}

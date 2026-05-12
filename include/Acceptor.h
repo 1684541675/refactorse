@@ -2,7 +2,6 @@
 #include "Socket.h"
 #include "InetAddress.h"
 
-#define ERROR_CHECK(ret,num,msg) {if(ret == num){perror(msg);return ;}}
 /*************************************************************
  *
  *  接收器类
@@ -13,6 +12,13 @@
  *  4. 提供获取新的 clientSock 的方法
  *
  *************************************************************/
+
+#include <string>
+using std::string;
+
+namespace searchengine
+{
+
 class Acceptor
 {
 public:
@@ -33,3 +39,4 @@ private:
     InetAddress _serverAddr;
 };
 
+}

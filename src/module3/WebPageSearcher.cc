@@ -11,6 +11,20 @@ using my_workaround_fifo_map = fifo_map<K, V, fifo_map_compare<K>, A>;
 using my_json = basic_json<my_workaround_fifo_map>;
 using Json = my_json;
 
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <utility>
+
+using std::ifstream;
+using std::stringstream;
+using std::cout;
+using std::endl;
+using std::move;
+using std::pair;
+
+namespace searchengine
+{
 
 WebPageSearcher::WebPageSearcher()
 {
@@ -25,7 +39,7 @@ WebPageSearcher::WebPageSearcher()
 void WebPageSearcher::loadFromFile()
 {
     // 读入停用词库
-    ifstream stopWordsLib(Configuration::getInstance()->getConfigMap()["stopwords"]);
+    ifstream stopWordsLib(Configuration::getInstance().getConfigMap()["stopwords"]);
     if (!stopWordsLib)
     {
         perror("can not open stop_words.utf8");
@@ -34,17 +48,17 @@ void WebPageSearcher::loadFromFile()
     string word;
     while (getline(stopWordsLib, word))
     {
-        _stopWords.push_back(word);
+        _stopWords.insert(word);
     }
 
     // 读入网页库
-    ifstream offsetLib(Configuration::getInstance()->getConfigMap()["offset"]);
+    ifstream offsetLib(Configuration::getInstance().getConfigMap()["offset"]);
     if (!offsetLib)
     {
         perror("can not open offset.dat");
         exit(EXIT_FAILURE);
     }
-    ifstream ripepageLib(Configuration::getInstance()->getConfigMap()["ripepage"]);
+    ifstream ripepageLib(Configuration::getInstance().getConfigMap()["ripepage"]);
     if (!ripepageLib)
     {
         perror("can not open ripepage.dat");
@@ -53,19 +67,19 @@ void WebPageSearcher::loadFromFile()
     string offsetLine;
     int docid;
     size_t beg, offset;
-    char buf[65535] = {0};
     while (getline(offsetLib, offsetLine))
     {
         stringstream ss(offsetLine);
         ss >> docid >> beg >> offset;
-        ripepageLib.read(buf, offset);
-        string doc(buf);
+        string doc(offset, '\0');
+        ripepageLib.seekg(beg);
+        ripepageLib.read(&doc[0], offset);
         WebPage tmp(doc);
         _pageList.push_back(move(tmp));
     }
 
     // 读入倒排索引库
-    ifstream invertIndexLib(Configuration::getInstance()->getConfigMap()["invertIndex"]);
+    ifstream invertIndexLib(Configuration::getInstance().getConfigMap()["invertIndex"]);
     if (!invertIndexLib)
     {
         perror("can not open invertIndex.dat");
@@ -94,7 +108,7 @@ void WebPageSearcher::loadFromFile()
 /**
  *  查询网页信息
  *
- *  1. msg 已经序列化后的，由客户发送的查询语句（如：王道在线科技）
+ *  1. msg 已经序列化后的，由客户发送的查询语句
  *  2. 返回所有网页信息，并且已经序列化为 json 格式
  */
 string WebPageSearcher::doQuery(string msg)
@@ -108,9 +122,8 @@ string WebPageSearcher::doQuery(string msg)
     unordered_map<string, double> vecX = getVectorX(pageX); // 获取向量 vecX
 
     string response;
-    set<PageID> IDs = getIDs(pageX); // 获取候选文章的编号集合 IDs（取交集）
-    // set<PageID> IDs = getIDs(pageX, vecX); // 记得剔除 vecX 和 pageX._wordsMap 中没有在交集集合 IDs 中出现过的单词
-
+    unordered_set<PageID> IDs = getIDs(pageX); // 获取候选文章的编号集合 IDs（取交集）
+   
     if (IDs.empty())
     {
         LogInfo("webPageSearcher miss: %s", msg.c_str());
@@ -122,7 +135,14 @@ string WebPageSearcher::doQuery(string msg)
 
         setSummarys(sortedIDs, pageX); // 为所有候选文章设置摘要信息
 
-        response = serialize(sortedIDs); // 获取经过序列化后的所有网页信息
+        if (sortedIDs.empty())
+        {
+            response = serializeForNothing();
+        }
+        else
+        {
+            response = serialize(sortedIDs);
+        }
     }
 
     return response;
@@ -132,69 +152,113 @@ string WebPageSearcher::doQuery(string msg)
  */
 unordered_map<string, double> WebPageSearcher::getVectorX(WebPage &pageX)
 {
-    unordered_map<string, double> vecX;                          // 向量 X
+    unordered_map<string, double> vecX;                          // 查询向量 X
     unordered_map<string, int> &wordsMapX = pageX.getWordsMap(); // <word, freq>
 
-    double sumWeight = 0.0; // pageX 中所有单词的权值平方和
-
-    for (auto &wordPair : wordsMapX) // pair<string, int> wordPair
+    int totalWords = pageX.getTotalwords();
+    if (totalWords == 0)
     {
-        double TF = (double)wordPair.second / wordsMapX.size();
-        int DF = _invertIndexTable[wordPair.first].size();
-        int N = _pageList.size();
-        double IDF = 0.0;
-        if (N != DF)
-        {
-            IDF = log10((double)N / (DF + 1));
-        }
-        double w = TF * IDF;
-        sumWeight += w * w; // 更新 sumWeight
-
-        vecX.insert({wordPair.first, w}); // <word, w>
+        return vecX;
     }
 
-    for (auto &wordPair : vecX) // pair<string, double> wordPair
+    int N = _pageList.size();
+    if (N == 0)
     {
-        wordPair.second /= sqrt(sumWeight); // <word, w'>
+        return vecX;
+    }
+
+    double sumWeight = 0.0;
+
+    for (auto &wordPair : wordsMapX)
+    {
+        const string &word = wordPair.first;
+        int freq = wordPair.second;
+
+        auto it = _invertIndexTable.find(word);
+        if (it == _invertIndexTable.end())
+        {
+            continue;
+        }
+
+        double TF = static_cast<double>(freq) / totalWords;
+        int DF = it->second.size();
+
+        double IDF = log10(static_cast<double>(N + 1) / (DF + 1));
+        double w = TF * IDF;
+
+        vecX.insert({word, w});
+        sumWeight += w * w;
+    }
+
+    if (sumWeight == 0.0)
+    {
+        return vecX;
+    }
+
+    double norm = sqrt(sumWeight);
+
+    for (auto &wordPair : vecX)
+    {
+        wordPair.second /= norm;
     }
 
     return vecX;
 }
+
 /**
  *  获取候选文章的编号集合
  */
-set<PageID> WebPageSearcher::getIDs(WebPage &pageX)
+unordered_set<PageID> WebPageSearcher::getIDs(WebPage &pageX)
 {
-    unordered_map<string, int> &wordsMapX = pageX.getWordsMap(); // <word, freq>
+    unordered_map<string, int> &wordsMapX = pageX.getWordsMap();
 
-    vector<set<PageID>> IDsArr;      // 存放所有单词所在网页 ID 的集合
-    for (auto &wordPair : wordsMapX) // pair<string, int> wordPair
+    unordered_set<PageID> result;
+    bool first = true;
+
+    for (auto &wordPair : wordsMapX)
     {
-        set<PageID> IDs;                                                 // 存放 wordPair.first 所在网页 ID 的集合
-        for (auto &invertInvertPair : _invertIndexTable[wordPair.first]) // pair<PageID, double> invertInvertPair
+        const string &word = wordPair.first;
+
+        auto it = _invertIndexTable.find(word);
+        if (it == _invertIndexTable.end())
         {
-            IDs.insert(invertInvertPair.first);
+            return {};
         }
-        IDsArr.push_back(move(IDs));
-    }
 
-    set<PageID> IDs;
-    for (auto &item : IDsArr) // unordered_set<PageID> item
-    {
-        if (IDs.empty())
+        // 第一个词：直接把它对应的所有 docID 放进 result
+        if (first)
         {
-            IDs = item;
+            for (auto &docWeightPair : it->second)
+            {
+                result.insert(docWeightPair.first);
+            }
+            first = false;
         }
         else
         {
-            set<PageID> tmp;
-            set_intersection(item.begin(), item.end(), IDs.begin(), IDs.end(), inserter(tmp, tmp.begin())); // 这里第五个参数不能就设置为 IDs
-            swap(IDs, tmp);
+            // 后续词：保留 result 中也出现在当前词倒排表里的 docID
+            unordered_set<PageID> tmp;
+
+            for (auto &id : result)
+            {
+                if (it->second.count(id) != 0)
+                {
+                    tmp.insert(id);
+                }
+            }
+
+            result.swap(tmp);
+        }
+
+        if (result.empty())
+        {
+            return {};
         }
     }
 
-    return IDs;
+    return result;
 }
+
 /**
  *  根据余弦相似度算法，对候选文章的 ID 集合进行排序
  *
@@ -216,36 +280,49 @@ struct MyGreater
     }
 };
 
-vector<PageID> WebPageSearcher::getSortedIDs(const unordered_map<string, double> &vecX, const set<PageID> &IDs)
+vector<PageID> WebPageSearcher::getSortedIDs(
+    const unordered_map<string, double> &vecX,
+    const unordered_set<PageID> &IDs)
 {
-    multiset<pair<double, PageID>, MyGreater> sortCos;
+    vector<pair<double, PageID>> scores;
+    scores.reserve(IDs.size());
 
     for (auto &id : IDs)
     {
-        unordered_map<string, double> vecY; // 向量 Yid
+        double score = 0.0;
+
         for (auto it = vecX.begin(); it != vecX.end(); ++it)
         {
-            double w = _invertIndexTable[it->first][id];
-            vecY.insert(make_pair(it->first, w));
-        }
+            const string &word = it->first;
+            double xWeight = it->second;
 
-        double innerProduct = 0, lengthXAbs = 0, lengthYAbs = 0;
-        for (auto it = vecX.begin(); it != vecX.end(); ++it)
-        {
-            innerProduct += it->second * vecY[it->first];
-            lengthXAbs += it->second * it->second;
-            lengthYAbs += vecY[it->first] * vecY[it->first];
-        }
+            auto wordIt = _invertIndexTable.find(word);
+            if (wordIt == _invertIndexTable.end())
+            {
+                continue;
+            }
 
-        double Cos = innerProduct / ((sqrt(lengthXAbs) * sqrt(lengthYAbs)));
-        sortCos.insert(make_pair(Cos, id));
+            auto docIt = wordIt->second.find(id);
+            if (docIt == wordIt->second.end())
+            {
+                continue;
+            }
+
+            score += xWeight * docIt->second;
+        }
+        scores.emplace_back(score, id);
     }
+
+    sort(scores.begin(), scores.end(), MyGreater());
 
     vector<PageID> result;
-    for (auto &id : sortCos)
+    result.reserve(scores.size());
+
+    for (auto &scorePair : scores)
     {
-        result.push_back(id.second);
+        result.push_back(scorePair.second);
     }
+
     return result;
 }
 /**
@@ -253,58 +330,83 @@ vector<PageID> WebPageSearcher::getSortedIDs(const unordered_map<string, double>
  */
 void WebPageSearcher::setSummarys(vector<PageID> &sortedIDs, WebPage &pageX)
 {
-    const size_t STEP = 40;                                      // 目标字符待往左/右偏移的字符数
-    unordered_map<string, int> &wordsMapX = pageX.getWordsMap(); // <word, freq>
-    vector<PageID> tmpIDs = sortedIDs;
+    const size_t STEP = 40;
+    unordered_map<string, int> &wordsMapX = pageX.getWordsMap();
 
-    for (auto &ID : tmpIDs) // 依次设置所有网页的摘要
+    // 最多只需要生成 maxpagenum 个摘要
+    size_t maxPageNum = 0;
+    auto it = Configuration::getInstance().getConfigMap().find("maxpagenum");
+    if (it != Configuration::getInstance().getConfigMap().end())
     {
-        static int n = 0;
-        //cout << ++n << endl;
-        ++n;
-        if (n == 1548)
+        maxPageNum = stoul(it->second);
+    }
+    if (maxPageNum == 0)
+    {
+        maxPageNum = sortedIDs.size();
+    }
+
+    vector<PageID> validIDs;
+    validIDs.reserve(std::min(maxPageNum, sortedIDs.size()));
+
+    for (auto ID : sortedIDs)
+    {
+        if (validIDs.size() >= maxPageNum)
         {
-            cout << "got it!" << endl;
+            break;
         }
 
+  
         const string content = _pageList[ID].getContent();
 
-        size_t first_pos = SIZE_MAX;     // page 中第一次出现 wordsMapX 中的单词的位置
-        for (auto &wordPair : wordsMapX) // pair<string, int> wordPair
+        size_t first_pos = string::npos;
+
+        for (auto &wordPair : wordsMapX)
         {
-            string word = wordPair.first;
+            const string &word = wordPair.first;
+
             size_t pos = content.find(word);
-            if (pos != content.npos && pos < first_pos)
+            if (pos != string::npos && pos < first_pos)
             {
                 first_pos = pos;
             }
         }
 
-        if (first_pos == SIZE_MAX) // 这篇文章中的 content 部分，没有 wordsMapX 中的单词，而在 title 部分有 wordsMapX 中的单词。此时该篇文章应被剔除
+        // 正文中没有查询词，跳过这篇网页
+        if (first_pos == string::npos)
         {
-            remove(sortedIDs.begin(), sortedIDs.end(), ID);
             continue;
         }
 
-        size_t first_to_end = content.substr(first_pos).size();                                             // 从 content[first_pos] 到字符串末尾所占字节数
-        size_t right_pos = first_pos + howManyBytesWithNCharacter(&content[first_pos], first_to_end, STEP); // 从 content[first_pos] 到其后 STEP 个字符所占字节数（first_to_end 为上限）
+        size_t first_to_end = content.size() - first_pos;
+        size_t right_pos = first_pos + howManyBytesWithNCharacter(
+                                            content, first_pos,
+                                            first_to_end,
+                                            STEP);
 
-        vector<size_t> ppc = getPosPerCharactor(content, first_pos);       // 从字符串前 first_pos 字节中所有字符的起始字节
-        size_t left_pos = ppc.size() >= STEP ? ppc[ppc.size() - STEP] : 0; 
+        vector<size_t> ppc = getPosPerCharactor(content, first_pos);
+        size_t left_pos = ppc.size() >= STEP ? ppc[ppc.size() - STEP] : 0;
 
-        string summary = "";
-        if (left_pos != 0) // content[left_pos] 前还有字符
+        string summary;
+        if (left_pos != 0)
         {
             summary += " ... ";
         }
+
         summary += content.substr(left_pos, right_pos - left_pos);
-        if (right_pos < content.size()) // content[right_pos] 后还有字符
+
+        if (right_pos < content.size())
         {
             summary += " ... ";
         }
+
         _pageList[ID].setPageSummary(summary);
+        validIDs.push_back(ID);
     }
+
+    sortedIDs.swap(validIDs);
 }
+
+
 /**
  *  返回搜索失败后的 json 格式字符串
  */
@@ -322,29 +424,26 @@ string WebPageSearcher::serializeForNothing()
  */
 string WebPageSearcher::serialize(const vector<PageID> &sortedIDs)
 {
-    const PageID N = stol(Configuration::getInstance()->getConfigMap()["maxpagenum"]);
-
     Json root;
     root["msgID"] = 200;
 
-    Json msg;
-    PageID cnt = 0;
-    for (auto &ID : sortedIDs)
+    Json msg = Json::array();
+
+    for (auto ID : sortedIDs)
     {
-        if (++cnt > N) // 第 N+1 次进入循环体则退出（保证只发送前 N 篇网页）
-        {
-            break;
-        }
-        WebPage &page = _pageList[ID];
+        const WebPage &page = _pageList[ID];
 
         Json file;
         file["title"] = page.getTitle();
         file["url"] = page.getUrl();
         file["summary"] = page.getSummary();
+
         msg.push_back(file);
     }
+
     root["msg"] = msg;
 
     return root.dump(4);
 }
 
+}

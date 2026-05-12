@@ -1,9 +1,24 @@
 #include "TcpConnection.h"
 #include "EventLoop.h"
 
-#include <sys/socket.h>
+#include <sys/socket.h>   // recv, getsockname, getpeername
+#include <netinet/in.h>   // sockaddr_in
+
+#include <cerrno>         // errno, EINTR
+#include <cstdio>         // perror, printf
+#include <sstream>        // ostringstream
+
+#include <iostream>
+
+using std::cout;
+using std::endl;
+using std::ostringstream;
+
+namespace searchengine
+{
+
 TcpConnection::TcpConnection(int fd, EventLoop *loopPtr)
-:_clientSock(fd)
+:_connSock(fd)
 ,_sockIO(fd)
 ,_localAddr(getLocalAddr())
 ,_peerAddr(getPeerAddr())
@@ -19,20 +34,35 @@ TcpConnection::TcpConnection(int fd, EventLoop *loopPtr)
 void TcpConnection::send(const string &msg)
 {
     const size_t length = msg.size();
+
 #ifdef __DEBUG__
     printf("\t(File:%s, Func:%s(), Line:%d)\n", __FILE__, __FUNCTION__, __LINE__);
     cout << "length = " << length << endl;
-    int ret = _sockIO.writen(&length, sizeof(size_t)); // 发送车头
-    cout << "ret = " << ret << endl;
-    ret = _sockIO.writen(msg.c_str(), length); // 发送车厢
-    cout << "ret = " << ret << endl;
-#else
-    _sockIO.writen(&length, sizeof(size_t)); // 发送车头
-    _sockIO.writen(msg.c_str(), length);     // 发送车厢
 #endif
 
-    // ret < msg.size() 连接已断开
-    // ret > msg.size() 出错
+    size_t ret = _sockIO.writen(&length, sizeof(size_t)); // 发送车头
+
+#ifdef __DEBUG__
+    cout << "send train head ret = " << ret << endl;
+#endif
+
+    if (ret != sizeof(size_t))
+    {
+        cout<<"TcpConnection::send: send train head failed"<<endl;
+        return;
+    }
+
+    ret = _sockIO.writen(msg.c_str(), length); // 发送车厢
+
+#ifdef __DEBUG__
+    cout << "send train body ret = " << ret << endl;
+#endif
+
+    if (ret != length)
+    {
+        cout<<"TcpConnection::send: send train body failed"<<endl;
+        return;
+    }
 }
 
 /**
@@ -41,24 +71,41 @@ void TcpConnection::send(const string &msg)
 string TcpConnection::recv()
 {
     size_t length = 0;
-    _sockIO.readn(&length, sizeof(size_t)); // 接收车头
+
+    size_t ret = _sockIO.readn(&length, sizeof(size_t)); // 接收车头
+
 #ifdef __DEBUG__
     printf("\t(File:%s, Func:%s(), Line:%d)\n", __FILE__, __FUNCTION__, __LINE__);
+    cout << "length head ret = " << ret << endl;
     cout << "length = " << length << endl;
 #endif
 
+    if (ret != sizeof(size_t))
+    {
+        cout << "TcpConnection::recv: read train head failed" << endl;
+        return {};
+    }
+
+    string msg(length, '\0');
+
+    if (length > 0)
+    {
+        ret = _sockIO.readn(&msg[0], length); // 接收车厢
+
 #ifdef __DEBUG__
-    char buf[length + 1] = {0};
-    int ret = _sockIO.readn(buf, length); // 接收车厢
-    printf("\t(File:%s, Func:%s(), Line:%d)\n", __FILE__, __FUNCTION__, __LINE__);
-    cout << "ret = " << ret << endl;
-    cout << "buf = " << buf << endl;
-#else
-    char buf[length + 1] = {0};
-    _sockIO.readn(buf, length); // 接收车厢
+        printf("\t(File:%s, Func:%s(), Line:%d)\n", __FILE__, __FUNCTION__, __LINE__);
+        cout << "body ret = " << ret << endl;
+        cout << "msg = " << msg << endl;
 #endif
 
-    return buf; // 注：收到的 json 字符串末尾不含 \n，因此无需去掉最后一个字符
+        if (ret != length)
+        {
+            cout << "TcpConnection::recv: read train body failed" << endl;
+            return {};
+        }
+    }
+
+    return msg;
 }
 
 /**
@@ -66,22 +113,37 @@ string TcpConnection::recv()
  */
 string TcpConnection::recvLine()
 {
-    char buf[65536] = {0};                           // 64K
-    size_t ret = _sockIO.readline(buf, sizeof(buf)); // 若成功读取，buf 的尾部一定为 ...\n\0...
+    char buf[65536] = {0};
 
-    if (ret > sizeof(buf) || ret < strlen(buf)) // 出错或连接已断开
+    size_t ret = _sockIO.readline(buf, sizeof(buf));
+
+#ifdef __DEBUG__
+    printf("\t(File:%s, Func:%s(), Line:%d)\n", __FILE__, __FUNCTION__, __LINE__);
+    cout << "recvLine ret = " << ret << endl;
+#endif
+
+    if (ret == 0)
     {
         return {};
     }
-    else if (ret == strlen(buf) && buf[ret - 1] != '\n') // buf 不含 \n
+
+    if (ret > sizeof(buf))
     {
-        perror("recv: msg do not contain \\n\n");
+        cout << "TcpConnection::recvLine: readline failed" << endl;
         return {};
     }
 
-    string res(buf);
+    if (buf[ret - 1] != '\n')
+    {
+        fprintf(stderr, "TcpConnection::recvLine: message does not contain newline\n");
+        return {};
+    }
 
-    return res.substr(0, res.size() - 1); // 剔除末尾的 \n 再返回
+    string res(buf, ret);
+
+    res.pop_back(); // 去掉末尾 '\n'
+
+    return res;
 }
 
 string TcpConnection::show()
@@ -97,15 +159,21 @@ string TcpConnection::show()
 
 bool TcpConnection::isClosed() const
 {
-    char tmp_buf[128] = {0};
-    int ret = 0;
+    char tmpBuf[128] = {0};
+    ssize_t ret = 0;
 
     do
     {
-        ret = ::recv(_clientSock.fd(), tmp_buf, sizeof(tmp_buf), MSG_PEEK); // 扫描 _clientSock._fd 的 RCV 但不取出数据
-    } while (ret == -1 && errno == EINTR);                                  // 收到中断信号直接忽略
+        ret = ::recv(_connSock.fd(), tmpBuf, sizeof(tmpBuf), MSG_PEEK);
+    } while (ret == -1 && errno == EINTR);
 
-    return ret == 0; // 返回 0 表示连接已断开
+    if (ret == -1)
+    {
+        perror("recv");
+        return true;
+    }
+
+    return ret == 0;
 }
 
 InetAddress TcpConnection::getLocalAddr()
@@ -113,7 +181,7 @@ InetAddress TcpConnection::getLocalAddr()
     struct sockaddr_in addr;
     socklen_t len = sizeof(struct sockaddr);
 
-    int ret = getsockname(_clientSock.fd(), (struct sockaddr *)&addr, &len);
+    int ret = getsockname(_connSock.fd(), (struct sockaddr *)&addr, &len);
     if(ret==-1)
     {
         perror("getsockname");
@@ -127,7 +195,7 @@ InetAddress TcpConnection::getPeerAddr()
     struct sockaddr_in addr;
     socklen_t len = sizeof(struct sockaddr);
 
-    int ret = getpeername(_clientSock.fd(), (struct sockaddr *)&addr, &len);
+    int ret = getpeername(_connSock.fd(), (struct sockaddr *)&addr, &len);
     if(ret==-1)
     {
         perror("getpeername");
@@ -185,10 +253,15 @@ void TcpConnection::notifyLoop(const string &msg)
 {
     // cout << "Worker Thread: notifyLoop" << endl;
 
-    // 注册 onPendingCb（即插入一个 onPendingCb）
-    _loopPtr->setPendingCallBack(bind(&TcpConnection::send, this, msg));
+    TcpConnectionPtr self = shared_from_this();
 
+
+    // 注册 onPendingCb（即插入一个 onPendingCb）
+     _loopPtr->setPendingCallBack([self, msg]() {
+        self->send(msg);
+    });
     // 向内核计数器中写值
     _loopPtr->writeCounter();
 }
 
+} // namespace searchengine

@@ -1,5 +1,10 @@
 #pragma once
 #include "CacheGroup.h"
+#include <vector>
+using std::vector;
+
+namespace searchengine
+{   
 
 /*************************************************************
  *
@@ -9,7 +14,7 @@
 class CacheManager
 {
 public:
-    static CacheManager *getInstance();
+    static CacheManager &getInstance();
 
     CacheGroup &getCacheGroup(size_t);
 
@@ -17,14 +22,14 @@ public:
 
 private:
     CacheManager();
-    ~CacheManager() {}
-
-    static void destroy();
+    ~CacheManager()=default;
+    CacheManager(const CacheManager &) = delete;
+    CacheManager &operator=(const CacheManager &) = delete;
 
 private:
     size_t _cacheNums;          // cache group 总数（即工作线程总数）
     size_t _maxRecord;          // 一块 LRU cache 的最大记录数
     vector<CacheGroup> _caches; // 所有线程的 cache group
-    static CacheManager *_pInstance;
 };
 
+}

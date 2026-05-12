@@ -1,10 +1,12 @@
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
 #include "SocketIO.h"
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <cerrno>
+#include <cstdio>
+
+namespace searchengine
+{
 
 SocketIO::SocketIO(int fd)
 : _fd(fd)
@@ -20,36 +22,36 @@ SocketIO::SocketIO(int fd)
  */
 size_t SocketIO::readn(void *buf, size_t count)
 {
-    int left = count;        // 待读取的字节数
-    char *ptr = (char *)buf; // 下一个字节写入的位置
-
-    int ret = 0;
+    size_t left = count;                     // 还需要读取的字节数
+    char *ptr = static_cast<char *>(buf);    // 当前写入位置
 
     while (left > 0)
     {
+        ssize_t ret = 0;
+
         do
         {
             ret = recv(_fd, ptr, left, 0);
-        } while (-1 == ret && errno == EINTR); // 中断事件直接忽略
+        } while (ret == -1 && errno == EINTR);
 
-        if (-1 == ret)
+        if (ret == -1)
         {
             perror("recv");
-            return count - ret; // 返回 count + 1
+            return count + 1;
         }
-        else if (0 == ret) // peerFd 已断开
+        else if (ret == 0)
         {
-            fprintf(stderr,"recv: peerFd(%d) disconnected\n", _fd);
+            fprintf(stderr, "recv: peerFd(%d) disconnected\n", _fd);
             break;
         }
-        else // 更新 ptr 和 left
+        else
         {
             ptr += ret;
             left -= ret;
         }
     }
 
-    return count;
+    return count - left;
 }
 
 /*
@@ -60,36 +62,36 @@ size_t SocketIO::readn(void *buf, size_t count)
  */
 size_t SocketIO::writen(const void *buf, size_t count)
 {
-    int left = count;              // 待希尔的字节数
-    const char *ptr = (char *)buf; // 下一个待写入字节的位置
-
-    int ret = 0;
+    size_t left = count;
+    const char *ptr = static_cast<const char *>(buf);
 
     while (left > 0)
     {
+        ssize_t ret = 0;
+
         do
         {
             ret = send(_fd, ptr, left, 0);
-        } while (-1 == ret && errno == EINTR); // 中断事件直接忽略
+        } while (ret == -1 && errno == EINTR);
 
-        if (-1 == ret) // 出错
+        if (ret == -1)
         {
             perror("send");
-            return count - ret; // 返回 count + 1
+            return count + 1;
         }
-        else if (0 == ret) // peerFd 已断开
+        else if (ret == 0)
         {
-            fprintf(stderr,"send: peerFd(%d) disconnected\n", _fd);
+            fprintf(stderr, "send: peerFd(%d) disconnected\n", _fd);
             break;
         }
-        else // 更新 ptr 和 left
+        else
         {
             ptr += ret;
             left -= ret;
         }
     }
 
-    return count;
+    return count - left;
 }
 
 /*
@@ -102,88 +104,75 @@ size_t SocketIO::writen(const void *buf, size_t count)
  */
 size_t SocketIO::readline(char *buf, size_t max)
 {
-    int left = max;  // 还可读取的字节数
-    int total = 0;   // 当前已读取的字节数
-    char *ptr = buf; // 下一个字节写入的位置
-
-    int ret = 0;
-
-    size_t rcv_size = 0;
-    socklen_t optlen = sizeof(rcv_size);
-    ret = getsockopt(_fd, SOL_SOCKET, SO_RCVBUF, &rcv_size, &optlen);
-    if(ret<0)
+    if (max == 0)
     {
-        perror("getsockopt");
-        return -1;
+        return 0;
     }
-    if (rcv_size < max - 1) // max 超出 RCV 的大小，直接报错
-    {
-        fprintf(stderr,"readline: max is too large. max should less than or equal to %ld\n", rcv_size + 1);
-        return max + 1;
-    }
+
+    size_t left = max - 1;   // 预留一个位置给 '\0'
+    size_t total = 0;        // 已经真正读取的字节数
+    char *ptr = buf;         // 下一个写入位置
 
     while (left > 0)
     {
+        ssize_t ret = 0;
+
         do
         {
-            ret = recv(_fd, ptr, left, MSG_PEEK); // 扫描 RCV 但不取出
-        } while (-1 == ret && errno == EINTR);      // 中断事件直接忽略
+            ret = recv(_fd, ptr, left, MSG_PEEK);
+        } while (ret == -1 && errno == EINTR);
 
-        if (-1 == ret) // 出错
+        if (ret == -1)
         {
             perror("recv");
-            return max - ret; // max + 1
+            return max + 1;
         }
-        else if (0 == ret) // peerFd 已断开
+        else if (ret == 0)
         {
-            fprintf(stderr,"recv: peerFd(%d) disconnected\n", _fd);
+            fprintf(stderr, "recv: peerFd(%d) disconnected\n", _fd);
             break;
         }
-        else
+
+        size_t nread = 0;
+        bool foundNewline = false;
+
+        for (size_t i = 0; i < static_cast<size_t>(ret); ++i)
         {
-            int realReadCnt = 0;
-            for (int idx = 0; idx < ret && idx < left; ++idx, ++realReadCnt)
+            ++nread;
+
+            if (ptr[i] == '\n')
             {
-                if (ptr[idx] == '\n')
-                {
-                    int sz = idx + 1;
-
-                    int ret = readn(ptr, sz); // 将 RCV 中已扫描到的数据（包含 \n）取出存入 buf
-                    if (ret > sz)             // 出错，返回 max + 1
-                    {
-                        return max + 1;
-                    }
-                    else if (ret < sz) // 未读完连接已断开，应该返回比 strlen(buf) 更小的值
-                    {
-                        total += ret;
-                        left -= ret;
-                        return (total - left) < 0 ? 0 : total - left;
-                    }
-
-                    return total + sz;
-                }
+                foundNewline = true;
+                break;
             }
+        }
 
-            int ret = readn(ptr, realReadCnt); // 将 RCV 中已扫描的数据（不含 \n）取出存入 buf
-            if (ret > realReadCnt)             // 出错，返回 max + 1
-            {
-                return max + 1;
-            }
-            total += ret;
-            ptr += ret;
-            left -= ret;
+        size_t real = readn(ptr, nread);
+
+        if (real > nread)
+        {
+            return max + 1;
+        }
+
+        ptr += real;
+        total += real;
+        left -= real;
+
+        if (real < nread)
+        {
+            buf[total] = '\0';
+            return max + 1;
+        }
+
+        if (foundNewline)
+        {
+            break;
         }
     }
 
-    char clean_buf[1024] = {0};
-    do
-    {
-        ret = recv(_fd, clean_buf, sizeof(clean_buf), MSG_DONTWAIT); // 非阻塞读，清空 RCV
-        // 若连接未断开，且 RCV 中有数据，返回 > 0
-        // 若连接未断开，且 RCV 中没有数据，返回 < 0
-        // 若连接已断开，直接返回 0
-    } while (ret > 0 || (ret == -1 && errno == EINTR));
-
-    return (total - left) < 0 ? 0 : total - left;
+    buf[total] = '\0';
+    return total;
 }
 
+
+} // namespace searchengine

@@ -1,5 +1,8 @@
 #pragma once
 
+namespace searchengine
+{
+
 class NonCopyable
 {
 protected:
@@ -10,3 +13,4 @@ protected:
     NonCopyable &operator=(const NonCopyable &) = delete;
 };
 
+}

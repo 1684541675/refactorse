@@ -2,9 +2,12 @@
 #include "Acceptor.h"
 #include "EventLoop.h"
 
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+#include <string>
+using std::string;
+
+namespace searchengine
+{
+
 class TcpServer
 {
 public:
@@ -25,3 +28,4 @@ private:
     EventLoop _loop;
 };
 
+}

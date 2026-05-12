@@ -1,14 +1,20 @@
 #pragma once
 #include "NonCopyable.h"
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+
+#include <pthread.h>
+
+namespace searchengine
+{
+    
+
 class MutexLock
-: NonCopyable
+:private NonCopyable
 {
 public:
     MutexLock();
     ~MutexLock();
+
+    static void check(int,const char *msg);    
 
     void lock();
     void unlock();
@@ -18,3 +24,4 @@ private:
     pthread_mutex_t _mutex;
 };
 
+}

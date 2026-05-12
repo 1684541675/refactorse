@@ -1,9 +1,7 @@
 #pragma once
-#include <arpa/inet.h>
-
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+#include <netinet/in.h>
+#include <string>
+using std::string;
 /*************************************************************
  *
  *  网络地址类
@@ -11,6 +9,10 @@ using namespace std;
  *  1. 提供 ip 和 port 与 sockaddr_in 类型的 _addr 的转换方法
  *
  *************************************************************/
+
+namespace searchegine
+{ 
+
 class InetAddress
 {
 public:
@@ -25,3 +27,4 @@ private:
     struct sockaddr_in _addr;
 };
 
+}

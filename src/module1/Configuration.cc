@@ -46,7 +46,7 @@ void Configuration::loadConf()
     while(getline(ifs, line)) {
         stringstream ss(line);
         ss >> key >> value;
-        _configMap.emplace(key, value);
+        _configMap[key] = value;
     }
 
     cout << "[ Configuration loading... ]" << endl;

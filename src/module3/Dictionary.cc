@@ -1,85 +1,110 @@
 #include "Dictionary.h"
 #include "Configuration.h"
 
-Dictionary *Dictionary::_singletonDict = getInstance(); //饿汉模式
-Dictionary *Dictionary::getInstance()
+#include <iostream>
+#include <fstream>
+#include <sstream>
+
+using std::cout;
+using std::endl;
+using std::ifstream;
+using std::istringstream;
+
+namespace searchengine
 {
-    if (_singletonDict == nullptr)
-    {
-        _singletonDict = new Dictionary();
-        _singletonDict->initDict();
-        _singletonDict->initIndex();
-        atexit(destory);
-    }
-    return _singletonDict;
+
+Dictionary::Dictionary()
+{
+    auto &configMap = Configuration::getInstance().getConfigMap();
+
+    initDict(configMap["dict"], _cnDict);
+    initIndex(configMap["dictIndex"], _cnIndex);
+
+    initDict(configMap["enDict"], _enDict);
+    initIndex(configMap["enDictIndex"], _enIndex);
 }
 
-void Dictionary::destory()
+Dictionary &Dictionary::getInstance()
 {
-    if (_singletonDict)
-    {
-        delete _singletonDict;
-        _singletonDict = nullptr;
-    }
+    static Dictionary singletonDict;
+    return singletonDict;
 }
 
-void Dictionary::initDict()
+void Dictionary::initDict(const string &dictPath, vector<pair<string, int>> &dict)
 {
-    cout << "initialize dictionary" << endl;
-    string dictPath = Configuration::getInstance()->getConfigMap()["dict"];
-    //string enDictPath = Configuration::getInstance()->getConfigMap()["enDict"];
+    cout << "initialize dictionary: " << dictPath << endl;
 
     ifstream ifs(dictPath);
-    //ifstream ifs(enDictPath);
-    if (!ifs.good())
+    if (!ifs)
     {
-        cout << "ifstream open file" << string(dictPath) << " error !" << endl;
+        cout << "ifstream open file " << dictPath << " error!" << endl;
         return;
     }
+
     string line;
     while (getline(ifs, line))
     {
         istringstream iss(line);
-        string word, freq;
-        iss >> word >> freq;
-        _dict.push_back(pair<string, int>(word, stoi(freq)));
-    }
-}
+        string word;
+        int freq;
 
-void Dictionary::initIndex() // key : set<id>
-{
-    cout << "initialize index" << endl;
-    string dictIndexPath = Configuration::getInstance()->getConfigMap()["dictIndex"];
-    //string enDictIndexPath = Configuration::getInstance()->getConfigMap()["enDictIndex"];
-
-    ifstream ifs(dictIndexPath);
-    //ifstream ifs(enDictIndexPath);
-    if (!ifs.good())
-    {
-        cout << "ifstream open file" << string(dictIndexPath) << " error !" << endl;
-        return;
-    }
-    string line;
-    while (getline(ifs, line))
-    {
-        istringstream iss(line);
-        string word, locate;
-        iss >> word;
-        while (iss >> locate)
+        if (iss >> word >> freq)
         {
-            _index[word].insert(stoi(locate));
+            dict.push_back({word, freq});
         }
     }
 }
 
-const vector<pair<string, int>> &Dictionary::getDict()
+void Dictionary::initIndex(const string &indexPath, unordered_map<string, unordered_set<int>> &index)
 {
-    return _dict;
+    cout << "initialize index: " << indexPath << endl;
+
+    ifstream ifs(indexPath);
+    if (!ifs)
+    {
+        cout << "ifstream open file " << indexPath << " error!" << endl;
+        return;
+    }
+
+    string line;
+    while (getline(ifs, line))
+    {
+        istringstream iss(line);
+        string key;
+        int locate;
+
+        if (iss >> key)
+        {
+            while (iss >> locate)
+            {
+                index[key].insert(locate);
+            }
+        }
+    }
 }
 
-const map<string, set<int>> &Dictionary::getIndexTable()
+const vector<pair<string, int>> &Dictionary::getDict(DictType type) const
 {
-    return _index;
+    if (type == DictType::CN)
+    {
+        return _cnDict;
+    }
+    else
+    {
+        return _enDict;
+    }
 }
 
+const unordered_map<string, unordered_set<int>> &Dictionary::getIndexTable(DictType type) const
+{
+    if (type == DictType::CN)
+    {
+        return _cnIndex;
+    }
+    else
+    {
+        return _enIndex;
+    }
+}
 
+}

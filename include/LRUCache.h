@@ -1,8 +1,17 @@
 #pragma once
 
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+#include <list>
+#include <utility>
+#include <unordered_map>
+#include <string>
+
+using std::list;
+using std::unordered_map;
+using std::string;
+using std::pair;
+
+namespace searchengine
+{
 
 class CacheManager;
 /*************************************************************
@@ -34,3 +43,4 @@ private:
     size_t _capacity;
 };
 
+}

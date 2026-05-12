@@ -1,13 +1,12 @@
 #include "Socket.h"
-#include <arpa/inet.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <cstdio>
+#include <cerrno>
 
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+namespace searchengine
+{
 
 Socket::Socket()
 {
@@ -48,7 +47,18 @@ void Socket::shutDownWrite()
 void Socket::setNonBlock()
 {
     int flags = fcntl(_fd, F_GETFL, 0);
+    if (flags == -1) 
+    {
+        perror("fcntl F_GETFL");
+        return;
+    }
+
     flags |= O_NONBLOCK;
-    fcntl(_fd, F_SETFL, flags);
+
+    if (fcntl(_fd, F_SETFL, flags) == -1) 
+    {
+        perror("fcntl F_SETFL");
+    }
 }
 
+}

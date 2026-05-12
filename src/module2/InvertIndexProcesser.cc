@@ -61,11 +61,7 @@ void InvertIndexProcesser::process()
             double TF = pageIdPair.second;
             int DF = pageIdMap.size(); // 上限 -> N
             int N = _pageList.size();
-            double IDF = 0.0;
-            if (N != DF)
-            {
-                IDF = (double)log10((double)N / (DF + 1));
-            }
+            double IDF = log10(static_cast<double>(N + 1) / (DF + 1));
             double w = TF * IDF;
 
             pageIdPair.second = w; // value = w

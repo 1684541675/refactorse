@@ -1,5 +1,10 @@
 #pragma once
 #include "LRUCache.h"
+#include <string>
+using std::string;
+
+namespace searchengine
+{
 
 class CacheManager;
 /*************************************************************
@@ -21,6 +26,7 @@ public:
 private:
     LRUCache _mainCache;          // 主 cache
     LRUCache _pendingUpdateCache; // 更新 cache（存放自上次更新以来新的记录，用于更新操作）
-    bool _onlyRead;               // 只读标志（若只读则新记录不能插入到两 cache 中）
+    bool _onlyRead; // 若为 true，则新记录只写入主 cache，不写入待更新 cache
 };
 
+}

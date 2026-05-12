@@ -1,13 +1,20 @@
 #pragma once
 #include "Thread.h"
 #include "TaskQueue.h"
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+
+#include <functional>
+#include <memory>   
+#include <vector>
+
+using std::function;
+using std::unique_ptr;
+using std::vector;
+
+namespace searchengine
+{
 
 class ThreadPool
 {
-    friend class WorkerThread;
 
 private:
     using Task = function<void()>;
@@ -33,3 +40,4 @@ private:
     bool _isExiting; // 退出标记
 };
 
+}

@@ -1,13 +1,9 @@
 #pragma once
+#include <functional>
+using std::function;
 
-
-#include <iostream>
-#include <bits/stdc++.h>
-#include <unistd.h>
-#include <sys/timerfd.h>
-#include <sys/epoll.h>
-#include <poll.h>
-using namespace std;
+namespace searchengine
+{
 
 class Timer
 {
@@ -15,7 +11,8 @@ class Timer
 
 public:
     Timer(TimerCallBack &&, int, int);
-
+    ~Timer();
+    
     void start();
     void stop();
 
@@ -32,3 +29,4 @@ private:
     bool _isRunning;
 };
 
+} // namespace searchengine

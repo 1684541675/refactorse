@@ -1,12 +1,13 @@
 #include "TimerThread.h"
-#include <bits/stdc++.h>
-#include <iostream>
+#include <utility>
+using std::move;
 
-using namespace std;
+namespace searchengine
+{
 
-TimerThread::TimerThread(TimerCallBack &&_cb, int init, int periodic)
-:_timer(move(_cb), init, periodic)
-,_thread(bind(&Timer::start, &_timer))
+TimerThread::TimerThread(TimerCallBack &&cb, int init, int periodic)
+:_timer(move(cb), init, periodic)
+,_thread([this](){ _timer.start(); })
 {
 
 }
@@ -22,3 +23,4 @@ void TimerThread::stop()
     _thread.join();
 }
 
+}

@@ -1,7 +1,24 @@
 #include "EventLoop.h"
-
+#include "Acceptor.h"
+#include "MutexLockGuard.h"
 #include <sys/eventfd.h>
 #include <unistd.h>
+#include <cerrno>
+#include <cstdio>
+#include <utility>
+#include <cstdlib>
+#include <cstdint>
+
+#define CHECK_RET(ret, msg) \
+    do { \
+        if ((ret) == -1) { \
+            perror(msg); \
+            exit(EXIT_FAILURE); \
+        } \
+    } while (0)
+
+namespace searchengine
+{
 
 EventLoop::EventLoop(Acceptor &acceptor)
 :_epFd(createEpoll())
@@ -17,6 +34,7 @@ EventLoop::EventLoop(Acceptor &acceptor)
 EventLoop::~EventLoop()
 {
     while (close(_epFd) < 0 && errno == EINTR); // 回收 _epFd
+    while (close(_eventFd) < 0 && errno == EINTR);// 回收 _eventFd
 }
 
 /**
@@ -37,7 +55,7 @@ void EventLoop::loop()
  *
  *  1. 让运行在 loop 中的线程退出 while 循环
  *  2. 执行 unloop 的线程和 执行 loop 的线程不是同一个，否则没有效果
- *  3. 执行 unloop 后，服务器只是暂时停止 epoll 监听，_listenSock._fd 和 _epFd 和 peerFd 都没有 close
+ *  3. 执行 unloop 后，服务器只是暂时停止 epoll 监听，_listenSock._fd 和 _epFd 和 connFd 都没有 close
  *     此时只要再将 _isLooping 设为 true，服务器可以照常运行
  */
 void EventLoop::unloop()
@@ -89,11 +107,7 @@ void EventLoop::setPendingCallBack(PendingCallBack &&onPendingCb)
 int EventLoop::createEpoll()
 {
     int fd = epoll_create1(0);
-    if(fd==-1)
-    {
-        perror("epoll_create1");
-        return 0;
-    }
+    CHECK_RET(fd, "epoll_create1");
     return fd;
 }
 
@@ -108,7 +122,7 @@ void EventLoop::addEpollFd(int fd)
     event.data.fd = fd;
 
     int ret = epoll_ctl(_epFd, EPOLL_CTL_ADD, fd, &event);
-    ERROR_CHECK(ret, -1, "epoll_ctl");
+    CHECK_RET(ret, "epoll_ctl");
 }
 
 /**
@@ -117,18 +131,15 @@ void EventLoop::addEpollFd(int fd)
 void EventLoop::delEpollFd(int fd)
 {
     int ret = epoll_ctl(_epFd, EPOLL_CTL_DEL, fd, nullptr);
-    ERROR_CHECK(ret, -1, "epoll_ctl");
+    CHECK_RET(ret,"epoll_ctl");
 }
 
 int EventLoop::createEvent()
 {
     int fd = eventfd(0, 0);
 
-    if(fd==-1)
-    {
-        perror("eventfd");
-        return 0;
-    }
+    CHECK_RET(fd, "eventfd");
+
     return fd;
 }
 
@@ -142,7 +153,7 @@ void EventLoop::readCounter()
     // cout << "Main Thread: readCounter" << endl;
     uint64_t val = 0;
     int ret = read(_eventFd, &val, sizeof(val));
-    ERROR_CHECK(ret, -1, "read");
+    CHECK_RET(ret, "read");
 }
 
 /**
@@ -156,7 +167,7 @@ void EventLoop::writeCounter()
     // cout << "Worker Thread: writeCounter" << endl;
     uint64_t one = 1;
     int ret = write(_eventFd, &one, sizeof(one));
-    ERROR_CHECK(ret, -1, "write");
+    CHECK_RET(ret, "write");
 }
 
 /**
@@ -196,7 +207,7 @@ void EventLoop::waitEpoll()
 
     do
     {
-        readyNum = epoll_wait(_epFd, &_eventList[0], _eventList.size(), 5000);
+        readyNum = epoll_wait(_epFd, &_eventList[0], static_cast<int>(_eventList.size()), 5000);
     } while (readyNum == -1 && errno == EINTR); // 收到中断信号直接忽略，重新监听
 
     if (readyNum == -1) // 出错
@@ -205,11 +216,11 @@ void EventLoop::waitEpoll()
     }
     else if (readyNum == 0) // 超时
     {
-        perror("epoll_wait: timeout\n");
+        return;
     }
     else // 正常情况：readyNum > 0
     {
-        if ((size_t)readyNum == _eventList.size()) // 就绪事件链表已满，可能还有一些就绪事件未从就绪集合中拷贝出来，因此需立即对 _eventList 扩容
+        if (static_cast<size_t>(readyNum) == _eventList.size()) // 就绪事件链表已满，可能还有一些就绪事件未从就绪集合中拷贝出来，因此需立即对 _eventList 扩容
         {
             _eventList.resize(2 * readyNum);       // 一定得用 resize，要保证 _eventList.size 成功变为 2 * readyNum
         }
@@ -247,26 +258,26 @@ void EventLoop::waitEpoll()
 /**
  *  发生新连接事件，EventLoop 中负责的执行逻辑
  *
- *  1. 获取新的已连接套接字 peerFd
+ *  1. 获取新的已连接套接字 connFd
  *  2. 建立新的 conn，并为其中的三个事件处理器进行注册
  *  3. 更新已连接集合 _connMap
  *  4. 执行该事件的事件处理器 conn->handleConnectionCallBack
  */
 void EventLoop::handleNewConnection()
 {
-    int peerFd = _acceptor.accept(); // 获取新的已连接套接字（即从 _listenSock._fd 中的全连接队列中取出一个连接，并为它分配新的已连接套接字）
+    int connFd = _acceptor.accept(); // 获取新的已连接套接字（即从 _listenSock._fd 中的全连接队列中取出一个连接，并为它分配新的已连接套接字）
 
-    addEpollFd(peerFd); // 将新的已连接套接字加入监听集合 _epFd
-
-
-    TcpConnectionPtr conn(new TcpConnection(peerFd, this)); // 建议一条新的连接
+    TcpConnectionPtr conn(new TcpConnection(connFd, this)); // 建议一条新的连接
 
     // 将三个 EventLoopCallBack 传给 conn 让其注册它的三个 TcpConnectionCallBack
     conn->setConnectionCallBack(_onConnectionCb);
     conn->setMessageCallBack(_onMessageCb);
     conn->setCloseCallBack(_onCloseCb);
 
-    _connMap.insert(make_pair(peerFd, conn)); // 将该条新连接加入已连接集合 _connMap
+    _connMap[connFd] = conn; // 将该条新连接加入已连接集合 _connMap
+
+    addEpollFd(connFd); // 将新的已连接套接字加入监听集合 _epFd
+
 
     conn->handleConnectionCallBack(); // 执行新连接事件的事件处理器
 }
@@ -275,14 +286,14 @@ void EventLoop::handleNewConnection()
  *  发生旧连接事件，EventLoop 中负责的执行逻辑
  *
  *  1. 可能是发生新消息到来事件，也可能是发生连接断开事件
- *  2. 在 _connMap 中查找 peerFd 的那条连接 conn
+ *  2. 在 _connMap 中查找 connFd 的那条连接 conn
  *  3. 判断该 conn 是否断开
  *  4. 若断开，则执行连接断开事件的事件处理器 conn->handleCloseCallBack
  *  5. 若没有断开，则执行新消息事件的事件处理器 conn->handleMessageCallBack
  */
-void EventLoop::handleOldConnection(int peerFd)
+void EventLoop::handleOldConnection(int connFd)
 {
-    auto conn_it = _connMap.find(peerFd); // 查找 peerFd 的那条连接 conn
+    auto conn_it = _connMap.find(connFd); // 查找 connFd 的那条连接 conn
 
     if (conn_it != _connMap.end())
     {
@@ -290,7 +301,7 @@ void EventLoop::handleOldConnection(int peerFd)
         {
             conn_it->second->handleCloseCallBack(); // 执行连接断开事件的事件处理器
 
-            delEpollFd(peerFd);      // 将 peerFd 从监听集合 _epFd 中删除，即不再监听它了
+            delEpollFd(connFd);      // 将 connFd 从监听集合 _epFd 中删除，即不再监听它了
             _connMap.erase(conn_it); // 将这条已断开的连接 conn 从已连接集合 _connMap 中删除（完成 TCP 挥手）
         }
         else                                          // conn 没有断开
@@ -300,7 +311,8 @@ void EventLoop::handleOldConnection(int peerFd)
     }
     else
     {
-        fprintf(stderr,"can not find peerFd(%d)'s connection in _connMap", peerFd);
+        fprintf(stderr,"can not find connFd(%d)'s connection in _connMap\n", connFd);
     }
 }
 
+} // namespace searchengine

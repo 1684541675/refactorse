@@ -1,5 +1,13 @@
 #include "TcpServer.h"
 
+#include <utility>
+#include <string>
+using std::move;
+using std::string;
+
+namespace searchengine
+{
+
 TcpServer::TcpServer(const string &ip, unsigned short port)
 :_acceptor(ip, port)
 ,_loop(_acceptor)
@@ -37,3 +45,4 @@ void TcpServer::setCloseCallBack(TcpServerCallBack &&onCloseCb)
     _loop.setCloseCallBack(move(onCloseCb));
 }
 
+}

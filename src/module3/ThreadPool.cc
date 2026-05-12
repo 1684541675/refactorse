@@ -1,4 +1,10 @@
 #include "ThreadPool.h"
+#include <iostream>
+#include <utility>
+using std::move;
+
+namespace searchengine
+{
 
 ThreadPool::ThreadPool(size_t workerNum, size_t capacity)
 :_workerNum(workerNum)
@@ -45,7 +51,11 @@ void ThreadPool::start()
 {
     for (size_t idx = 0; idx < _workerNum; ++idx) // 创建子线程对象
     {
-        unique_ptr<Thread> pThread(new Thread(idx, bind(&ThreadPool::doTask, this))); // 将 doTask 传给 Thread::_cb，并设置线程的 id
+        unique_ptr<Thread> pThread(
+            new Thread(idx, [this]() {
+                this->doTask();
+            })
+        ); // 将 doTask 传给 Thread::_cb，并设置线程的 id
         _workers.push_back(move(pThread));
     }
 
@@ -72,3 +82,4 @@ void ThreadPool::stop()
     }
 }
 
+}

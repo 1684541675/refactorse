@@ -7,6 +7,9 @@
  *  timer 线程
  *
  *************************************************************/
+namespace searchengine
+{
+
 class TimerThread
 {
     using TimerCallBack = function<void()>;
@@ -22,3 +25,4 @@ private:
     Thread _thread;
 };
 
+}

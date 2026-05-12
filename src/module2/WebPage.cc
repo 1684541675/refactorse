@@ -133,7 +133,7 @@ void WebPage::setPageSummary(const string &summary)
 // 对 _docTitle 和 _docContent 分词并统计词频
 void WebPage::splitWord(SplitTool &tool, const unordered_set<string> &stopWords)
 {
-    auto words = tool.cut(_docTitle + _docContent); // 分词
+    auto words = tool.cut(_docTitle + " " + _docContent); // 分词
     for (auto &word : words)                        // 去重并统计词频
     {
         if (word != " " && stopWords.count(word) == 0) // 若不是停用词就加入 _wordsMap

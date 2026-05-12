@@ -1,7 +1,5 @@
 #pragma once
-#include <string>
-
-#define ERROR_CHECK(ret,num,msg) {if(ret == num){perror(msg);return ;}}
+#include <cstddef>
 /*************************************************************
  *
  *  IO 操作类
@@ -10,6 +8,10 @@
  *  2. 实现具体的 IO 操作
  *
  *************************************************************/
+
+namespace searchengine
+{ 
+
 class SocketIO
 {
 public:
@@ -23,3 +25,4 @@ private:
     int _fd;
 };
 
+} // namespace searchengine

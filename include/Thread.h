@@ -1,10 +1,15 @@
 #pragma once
 #include "NonCopyable.h"
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+#include <pthread.h>
+#include <functional>
+
+using std::function;
+
+namespace searchengine
+{
+
 class Thread
-:NonCopyable
+:private NonCopyable
 {
 private:
     using ThreadCallBack = function<void()>;
@@ -27,3 +32,4 @@ private:
     ThreadCallBack _cb; // 类似 run（这里会传入 ThreadPool::doTask）
 };
 
+}

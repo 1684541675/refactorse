@@ -1,6 +1,3 @@
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
 #include "Configuration.h"
 #include "../../3rdparty/json-develop/include/nlohmann/json.hpp"
 #include "fifo_map.hpp"
@@ -15,8 +12,18 @@ using Json = my_json;
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/epoll.h>
 #include <unistd.h>
+#include <iostream>
+#include <string>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+using std::cin;
+using std::cout;
+using std::endl;
+using std::string;
+
+using namespace searchengine;
 
 int netFd; // 全局网络套接字
 
@@ -99,13 +106,12 @@ void showWithPaging(Json &root)
  */
 size_t sendm(const void *buf, size_t count)
 {
-    int left = count;              // 待希尔的字节数
-    const char *ptr = (char *)buf; // 下一个待写入字节的位置
-
-    int ret = 0;
-
+    size_t left = count;
+    const char *ptr = static_cast<const char *>(buf);
     while (left > 0)
     {
+        ssize_t ret = 0;
+
         do
         {
             ret = ::send(netFd, ptr, left, 0);
@@ -114,11 +120,11 @@ size_t sendm(const void *buf, size_t count)
         if (-1 == ret) // 出错
         {
             perror("send");
-            return count - ret; // 返回 count + 1
+            return count + 1; // 返回 count + 1
         }
         else if (0 == ret) // peerFd 已断开
         {
-            perror("send: server disconnected\n");
+            fprintf(stderr, "send: server disconnected\n");
             break;
         }
         else // 更新 ptr 和 left
@@ -128,7 +134,7 @@ size_t sendm(const void *buf, size_t count)
         }
     }
 
-    return count;
+    return count-left;
 }
 
 /**
@@ -139,13 +145,15 @@ size_t sendm(const void *buf, size_t count)
  */
 size_t recvm(void *buf, size_t count)
 {
-    int left = count;        // 待读取的字节数
-    char *ptr = (char *)buf; // 下一个字节写入的位置
+    size_t left = count;                     // 还需要读取的字节数
+    char *ptr = static_cast<char *>(buf);    // 当前写入位置
 
-    int ret = 0;
 
     while (left > 0)
     {
+
+        ssize_t ret = 0;
+
         do
         {
             ret = ::recv(netFd, ptr, left, 0);
@@ -154,11 +162,11 @@ size_t recvm(void *buf, size_t count)
         if (-1 == ret)
         {
             perror("recv");
-            return count - ret; // 返回 count + 1
+            return count + 1; // 返回 count + 1
         }
         else if (0 == ret) // server 已断开
         {
-            perror("recv: server disconnected\n");
+            fprintf(stderr, "recv: server disconnected\n");
             break;
         }
         else // 更新 ptr 和 left
@@ -168,7 +176,7 @@ size_t recvm(void *buf, size_t count)
         }
     }
 
-    return count;
+    return count-left;
 }
 
 /**
@@ -215,15 +223,14 @@ void recvKeys()
 
     size_t length = 0;
     recvm(&length, sizeof(size_t)); // 接收车头
-    char buf[length + 1] = {0};
-    recvm(buf, length); // 接收车厢
-
-    string msg(buf);
+    
+    string msg(length, '\0');
+    recvm(&msg[0], length);// 接收车厢
 #ifdef __DEBUG__
     printf("\t(File:%s, Func:%s(), Line:%d)\n", __FILE__, __FUNCTION__, __LINE__);
     cout << msg << endl;
 #endif
-    Json root = json::parse(msg); // 解析
+    Json root = Json::parse(msg); // 解析
     if (100 == root["msgID"])
     {
         cout << "Response from server: " << endl;
@@ -249,15 +256,14 @@ void recvWebPages()
 {
     size_t length = 0;
     recvm(&length, sizeof(size_t)); // 接收车头
-    char buf[length + 1] = {0};
-    recvm(buf, length); // 接收车厢
 
-    string msg(buf);
+    string msg(length, '\0');
+    recvm(&msg[0], length);// 接收车厢
 #ifdef __DEBUG__
     printf("\t(File:%s, Func:%s(), Line:%d)\n", __FILE__, __FUNCTION__, __LINE__);
     cout << msg << endl;
 #endif
-    Json root = json::parse(msg); // 解析
+    Json root = Json::parse(msg); // 解析
     if (200 == root["msgID"])
     {
         cout << "Response from server: " << endl;
@@ -278,8 +284,8 @@ void recvWebPages()
 
 int main()
 {
-    string ip = Configuration::getInstance()->getConfigMap()["ip"];
-    string port = Configuration::getInstance()->getConfigMap()["port"];
+    string ip = Configuration::getInstance().getConfigMap()["ip"];
+    string port = Configuration::getInstance().getConfigMap()["port"];
 
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;

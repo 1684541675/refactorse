@@ -1,13 +1,43 @@
 #include "Timer.h"
 
-Timer::Timer(TimerCallBack &&_cb, int init, int periodic)
-:_timerCb(move(_cb))
-,_timerFd()//   _timerFd(createTimerFd()), // 若在这儿 create timerFd，它只属于主线程！
+#include <unistd.h>
+#include <sys/timerfd.h>
+#include <poll.h>
+
+#include <utility>    // std::move
+#include <cerrno>     // errno, EINTR
+#include <cstdio>     // perror, printf
+#include <cstdint>    // uint64_t
+
+using std::move;
+
+#define CHECK_RET(ret, msg) \
+    do { \
+        if ((ret) == -1) { \
+            perror(msg); \
+            exit(EXIT_FAILURE); \
+        } \
+    } while (0)
+
+namespace searchengine
+{
+
+Timer::Timer(TimerCallBack &&cb, int init, int periodic)
+:_timerCb(move(cb))
+,_timerFd(-1)//   _timerFd(createTimerFd()), // 若在这儿 create timerFd，它只属于主线程！
 ,_initTime(init)
 ,_periodicTime(periodic)
 ,_isRunning(false)
 {
 
+}
+
+Timer::~Timer()
+{
+    if (_timerFd >= 0)
+    {
+        close(_timerFd);
+    }
 }
 
 /**
@@ -66,10 +96,7 @@ void Timer::stop()
 int Timer::createTimerFd()
 {
     int fd = timerfd_create(CLOCK_REALTIME, 0);
-    if (fd < 0)
-    {
-        perror("timerfd_create");
-    }
+    CHECK_RET(fd, "timerfd_create");
     return fd;
 }
 
@@ -81,11 +108,7 @@ void Timer::setTimerFd(int init, int periodic)
     value.it_interval.tv_sec = periodic;
     value.it_interval.tv_nsec = 0;
     int ret = timerfd_settime(_timerFd, 0, &value, nullptr);
-    if (ret < 0)
-    {
-        perror("timerfd_settime");
-        return;
-    }
+    CHECK_RET(ret, "timerfd_settime");
 }
 
 void Timer::handleRead()
@@ -98,3 +121,4 @@ void Timer::handleRead()
     }
 }
 
+} // namespace searchengine

@@ -2,9 +2,20 @@
 
 #include "WebPage.h"
 #include "SplitTool.h"
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <set>
+using std::string;
+using std::unordered_map;
+using std::vector;
+using std::set;
+using std::unordered_set;
+
+namespace searchengine
+{
 
 class WebPageSearcher
 {
@@ -18,8 +29,8 @@ private:
     void loadFromFile();
 
     unordered_map<string, double> getVectorX(WebPage &);
-    set<PageID> getIDs(WebPage &);
-    vector<PageID> getSortedIDs(const unordered_map<string, double> &, const set<PageID> &);
+    unordered_set<PageID> getIDs(WebPage &);
+    vector<PageID> getSortedIDs(const unordered_map<string, double> &, const unordered_set<PageID> &);
 
     void setSummarys(vector<PageID> &, WebPage &);
 
@@ -32,6 +43,7 @@ private:
     unordered_map<string, unordered_map<PageID, double>> _invertIndexTable;
 
     SplitTool _splitTool;
-    vector<string> _stopWords;
+    unordered_set<string> _stopWords;
 };
 
+}

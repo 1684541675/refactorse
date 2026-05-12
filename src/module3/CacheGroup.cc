@@ -1,5 +1,8 @@
 #include "CacheGroup.h"
 
+namespace searchengine
+{
+
 CacheGroup::CacheGroup(size_t capacity)
 :_mainCache(capacity)
 ,_pendingUpdateCache(capacity)
@@ -26,4 +29,6 @@ void CacheGroup::update(const CacheGroup &group)
 {
     _mainCache.update(group._mainCache);
     _pendingUpdateCache.update(group._pendingUpdateCache); // 传进来的 group 的 _pendingUpdateCache 是空的
+}
+
 }

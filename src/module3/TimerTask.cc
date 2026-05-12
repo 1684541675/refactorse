@@ -1,12 +1,12 @@
 #include "TimerTask.h"
 #include "CacheManager.h"
 
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+namespace searchengine
+{
 
 void TimerTask::process()
 {
-    CacheManager::getInstance()->sync(); // 同步缓存
+    CacheManager::getInstance().sync(); // 同步缓存
 }
 
+}

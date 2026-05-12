@@ -1,9 +1,15 @@
 #pragma once
 #include "Condition.h"
 #include "MutexLock.h"
-#include <iostream>
-#include <bits/stdc++.h>
-using namespace std;
+
+#include <queue>
+#include <functional>
+using std::queue;
+using std::function;
+
+namespace searchengine
+{
+
 class TaskQueue
 {
 private:
@@ -27,3 +33,4 @@ private:
     bool _isExiting;  //退出标记（当线程被唤醒后，哪怕队列中没有任务也无需等待，直接退出）
 };
 
+}

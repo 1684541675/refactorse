@@ -1,28 +1,51 @@
 #include "Condition.h"
+#include <iostream>
+#include <cstring>  
+#include <cstdlib>
+using std::cerr;
+using std::endl;
+
+namespace searchengine
+{
 
 Condition::Condition(MutexLock &mutex)
 :_mutex(mutex)
 {
-    pthread_cond_init(&_cond, nullptr);
+    int ret = pthread_cond_init(&_cond, nullptr);
+    check(ret, "pthread_cond_init");
 }
 
 Condition::~Condition()
 {
-    pthread_cond_destroy(&_cond);
+    int ret = pthread_cond_destroy(&_cond);
+    check(ret, "pthread_cond_destroy");
+}
+
+void  Condition::check(int ret, const char *msg)
+{
+    if (ret != 0) {
+        cerr << msg << " failed: "
+                  << strerror(ret) << endl;
+        exit(EXIT_FAILURE);
+    }
 }
 
 void Condition::wait()
 {
-    pthread_cond_wait(&_cond, _mutex.getLock());
+    int ret = pthread_cond_wait(&_cond, _mutex.getLock());
+    check(ret, "pthread_cond_wait");
 }
 
 void Condition::notify()
 {
-    pthread_cond_signal(&_cond);
+    int ret = pthread_cond_signal(&_cond);
+    check(ret, "pthread_cond_signal");
 }
 
 void Condition::notifyAll()
 {
-    pthread_cond_broadcast(&_cond);
+    int ret = pthread_cond_broadcast(&_cond);
+    check(ret, "pthread_cond_broadcast");
 }
-    
+   
+}

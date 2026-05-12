@@ -1,5 +1,16 @@
 #include "Thread.h"
-__thread size_t __thread_id; // 工作线程的编号（0, 1, 2, ... , _workerNum-1）
+#include <iostream>
+#include <cstdlib>  
+#include <cstring>
+using std::cin;
+using std::cout;
+using std::endl;
+using std::move;
+using std::cerr;
+namespace searchengine
+{
+
+__thread size_t __thread_id; // 工作线程的编号（0, 1, 2, ... , _workerNum-1）    
 
 Thread::Thread(ThreadCallBack &&cb)
 :_id(100)
@@ -31,9 +42,9 @@ Thread::~Thread()
 void Thread::create()
 {
     int ret = pthread_create(&_thid, nullptr, threadFunc, (void *)this); // this指针一定是Thread类型
-    if (ret)
+    if (ret != 0)
     {
-        perror("pthread_create");
+        cerr << "pthread_create failed: " << strerror(ret) << endl;
         exit(EXIT_FAILURE);
     }
     _isRunning = true;
@@ -44,9 +55,9 @@ void Thread::join()
     if (_isRunning)
     {
         int ret=pthread_join(_thid, nullptr);
-        if(ret)
+        if (ret != 0)
         {
-            perror("pthread_join"); 
+            cerr << "pthread_join failed: " << strerror(ret) << endl;
             exit(EXIT_FAILURE);
         }
         _isRunning = false;
@@ -54,13 +65,15 @@ void Thread::join()
 }
 void *Thread::threadFunc(void *args)
 {
-    Thread *pThread = (Thread *)args;
-    __thread_id = pThread->_id; // 设置该线程是几号线程
+    Thread *pThread = static_cast<Thread *>(args); // 线程入口函数的参数一定是Thread类型
+   
     if (pThread)
     {
+        __thread_id = pThread->_id; // 设置该线程是几号线程
         pThread->_cb(); // doTask -> getTask -> task
     }
     cout << "worker thread " << __thread_id<< ": exit" << endl;
     pthread_exit(nullptr);
 }
 
+}

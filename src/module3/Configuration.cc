@@ -1,65 +1,61 @@
 #include "Configuration.h"
 
-Configuration *Configuration::_pInstance = Configuration::getInstance(); // 饿汉模式
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <cstdlib>
 
-Configuration::Configuration(const string &filepath)
-:_filepath(filepath)
+namespace searchengine {
+
+using std::ifstream;
+using std::stringstream;
+using std::getline;
+using std::cout;
+using std::cerr;
+using std::endl;
+
+Configuration& Configuration::getInstance(const string &filepath)
 {
-    loadConf();
+    static Configuration instance(filepath);
+    return instance;
 }
 
-/**
- *  加载配置文件，并将配置信息存入 _configMap
- */
-void Configuration::loadConf()
-{
-    ifstream ifs(_filepath);
-
-    string lines;
-    string first, second;
-    while (getline(ifs, lines))
-    {
-        stringstream ss(lines);
-        ss >> first >> second;
-        _configMap[first] = second;
-    }
-
-    cout << "[ _configMag is loading... ]\n"
-              << endl;
-    for (auto &item : _configMap)
-    {
-        cout << item.first << " " << item.second << endl;
-    }
-    cout << "\n[ _configMag finish loading ]\n"
-              << endl;
-
-    ifs.close();
-}
-
-Configuration *Configuration::getInstance()
-{
-    if (_pInstance == nullptr)
-    {
-        _pInstance = new Configuration();
-        atexit(destroy);
-    }
-
-    return _pInstance;
-}
-
-void Configuration::destroy()
-{
-    cout << "void Configuration::destroy()" << endl;
-
-    if (_pInstance)
-    {
-        delete _pInstance;
-        _pInstance = nullptr;
-    }
-}
-
-unordered_map<string, string> &Configuration::getConfigMap()
+unordered_map<string, string>& Configuration::getConfigMap()
 {
     return _configMap;
 }
 
+Configuration::Configuration(const string &filepath)
+: _filepath(filepath)
+{
+    loadConf();
+}
+
+void Configuration::loadConf()
+{
+    ifstream ifs(_filepath);
+
+    if(!ifs) {
+        cerr << "Configuration file open error: " << _filepath << endl;
+        exit(1);
+    }
+
+    string line;
+    string key, value;
+
+    while(getline(ifs, line)) {
+        stringstream ss(line);
+        ss >> key >> value;
+        _configMap[key] = value;
+    }
+
+    cout << "[ Configuration loading... ]" << endl;
+
+    for(const auto &item : _configMap) {
+        cout << item.first << " " << item.second << endl;
+    }
+
+    cout << "[ Configuration load finished ]" << endl;
+}
+
+} // namespace searchengine
