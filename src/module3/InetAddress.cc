@@ -2,7 +2,7 @@
 #include <arpa/inet.h>
 #include <cstring>
 
-namespace searchegine
+namespace searchengine
 {
 
 InetAddress::InetAddress(const string &ip, unsigned short port)

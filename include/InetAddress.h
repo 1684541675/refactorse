@@ -10,7 +10,7 @@ using std::string;
  *
  *************************************************************/
 
-namespace searchegine
+namespace searchengine
 { 
 
 class InetAddress

@@ -24,3 +24,27 @@
 	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:49720 disconnected
 2025-06-06 18:08:32,568 SearchEngine [INFO] [EchoServer.cc:onClose.61]
 	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:39626 disconnected
+2026-05-12 17:51:58,551 SearchEngine [INFO] [EchoServer.cc:onConnection.62]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:51252 connected
+2026-05-12 17:53:20,284 SearchEngine [INFO] [EchoServer.cc:onConnection.62]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:37630 connected
+2026-05-12 17:54:14,089 SearchEngine [INFO] [MyTask.cc:process.56]
+	redis miss: hello
+2026-05-12 17:55:08,825 SearchEngine [INFO] [MyTask.cc:process.56]
+	redis miss: 中国
+2026-05-12 17:55:26,570 SearchEngine [INFO] [MyTask.cc:process.56]
+	redis miss: 我是me
+2026-05-12 17:55:26,570 SearchEngine [INFO] [KeyRecommender.cc:doQuery.44]
+	keyRecommender unsupported query: 我是me
+2026-05-12 17:55:42,142 SearchEngine [INFO] [EchoServer.cc:onClose.78]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:51252 disconnected
+2026-05-12 17:55:47,683 SearchEngine [INFO] [EchoServer.cc:onConnection.62]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:57828 connected
+2026-05-12 17:55:58,922 SearchEngine [INFO] [MyTask.cc:process.56]
+	redis miss: 中国人
+2026-05-12 17:56:15,554 SearchEngine [INFO] [MyTask.cc:process.72]
+	LRU miss: 中国
+2026-05-12 17:58:12,325 SearchEngine [INFO] [EchoServer.cc:onClose.78]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:37630 disconnected
+2026-05-12 17:58:18,887 SearchEngine [INFO] [EchoServer.cc:onClose.78]
+	[tcp] (local)127.0.0.1:1234 --> (peer)127.0.0.1:57828 disconnected

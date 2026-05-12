@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Dictionary.h"
+
 #include <string>
 #include <unordered_set>
 #include <queue>

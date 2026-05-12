@@ -4,10 +4,11 @@
 using std::cout;
 using std::endl;
 
-extern __thread size_t __thread_id; // 工作线程的编号（0, 1, 2, ... , _workerNum-1）
 
 namespace searchengine
 {
+
+extern __thread size_t __thread_id; // 工作线程的编号（0, 1, 2, ... , _workerNum-1）
 
 LRUCache::LRUCache(size_t capacity)
 :_capacity(capacity)
